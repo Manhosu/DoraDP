@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getAuthUrl, exchangeCodeForTokens } from '../integrations/google-calendar.js';
 import { getUserByWhatsAppNumber, updateGoogleTokens, completeOnboarding } from '../integrations/supabase.js';
+import { sendTextMessage } from '../integrations/whatsapp.js';
+import { formatGoogleConnectedMessage } from '../utils/formatters.js';
 
 const router = Router();
 
@@ -92,10 +94,16 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // Salvar tokens no banco
     await updateGoogleTokens(user.id, accessToken, refreshToken, expiryDate);
 
+    // Verificar se tem Notion configurado
+    const hasNotion = !!user.notion_token;
+
     // Marcar onboarding como completo se tiver Notion configurado
-    if (user.notion_token) {
+    if (hasNotion) {
       await completeOnboarding(user.id);
     }
+
+    // Enviar mensagem de confirmação no WhatsApp
+    await sendTextMessage(state, formatGoogleConnectedMessage(hasNotion));
 
     res.status(200).send(`
       <html>

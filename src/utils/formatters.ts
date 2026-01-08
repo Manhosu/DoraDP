@@ -63,22 +63,20 @@ export function formatWelcomeMessage(userName?: string): string {
 
   return `${greeting}
 
-Sou o *AIJP* - seu Assistente de Inteligência Jurídica e Prazos.
+Sou a *DoraDP* - sua assistente de Departamento Pessoal.
 
 Posso ajudá-lo a:
-⚖️ Agendar audiências
-👥 Marcar reuniões
-⏰ Registrar prazos processuais
-📅 Organizar compromissos
+📋 Registrar folhas de pagamento
+🏖️ Agendar férias
+📝 Controlar rescisões
+⏰ Gerenciar prazos de DP
 
 *Como usar:*
-Basta me enviar uma mensagem de texto ou áudio com os detalhes do compromisso. Por exemplo:
+Basta me enviar uma mensagem de texto ou áudio com os detalhes. Por exemplo:
 
-_"Audiência no Fórum Central dia 15 às 14h, processo 1234567"_
+_"Folha de pagamento empresa X dia 30/12"_
 
-Eu vou extrair as informações e salvar no seu Google Calendar e Notion automaticamente!
-
-Digite *ajuda* para ver todos os comandos.`;
+Eu vou extrair as informações e salvar no seu Google Calendar e Notion automaticamente!`;
 }
 
 /**
@@ -93,11 +91,56 @@ export function formatHelpMessage(): string {
 *Para agendar:*
 Envie uma mensagem de texto ou áudio descrevendo o compromisso. Exemplos:
 
-_"Reunião com cliente João amanhã às 10h"_
-_"Prazo para contestação dia 20/01 às 23:59"_
-_"Audiência de instrução sexta-feira às 14h no Fórum Central"_
+_"Folha de pagamento empresa X dia 30/12"_
+_"Férias do João empresa Y semana que vem"_
+_"Rescisão Maria empresa Z amanhã"_
 
 Dica: Quanto mais detalhes você fornecer, melhor será o registro!`;
+}
+
+/**
+ * Formata mensagem de configuração para novos usuários
+ */
+export function formatSetupMessage(whatsappNumber: string, appUrl: string): string {
+  return `⚙️ *Configuração necessária*
+
+Para usar a DoraDP, você precisa conectar suas contas:
+
+🔗 *1. Google Calendar:*
+${appUrl}/auth/google?whatsapp=${whatsappNumber}
+
+🔗 *2. Notion:*
+${appUrl}/setup/notion?whatsapp=${whatsappNumber}
+
+Clique nos links acima para configurar. Isso só precisa ser feito uma vez!`;
+}
+
+/**
+ * Formata mensagem de Google conectado
+ */
+export function formatGoogleConnectedMessage(hasNotion: boolean): string {
+  if (hasNotion) {
+    return `✅ *Google Calendar conectado com sucesso!*
+
+Tudo pronto! Agora você pode enviar mensagens para agendar seus compromissos de DP.`;
+  }
+  return `✅ *Google Calendar conectado com sucesso!*
+
+Agora falta apenas configurar o Notion para finalizar.`;
+}
+
+/**
+ * Formata mensagem de Notion conectado
+ */
+export function formatNotionConnectedMessage(hasGoogle: boolean): string {
+  if (hasGoogle) {
+    return `✅ *Notion conectado com sucesso!*
+
+Tudo pronto! Agora você pode enviar mensagens para agendar seus compromissos de DP.`;
+  }
+  return `✅ *Notion conectado com sucesso!*
+
+Agora falta apenas configurar o Google Calendar para finalizar.`;
 }
 
 /**

@@ -21,7 +21,9 @@ import {
   formatHelpMessage,
   formatDailyAgenda,
   formatDateRequestMessage,
+  formatSetupMessage,
 } from '../utils/formatters.js';
+import { env } from '../config/env.js';
 
 /**
  * Handler principal para processar mensagens do WhatsApp
@@ -57,18 +59,25 @@ export async function handleIncomingMessage(
       user = userResult.data;
     }
 
-    // Se for novo usuário, enviar boas-vindas
+    // Se for novo usuário ou onboarding não completo
     if (isNewUser || !user.onboarding_completed) {
-      await sendTextMessage(whatsappNumber, formatWelcomeMessage(senderName));
+      // Enviar boas-vindas apenas se for novo usuário
+      if (isNewUser) {
+        await sendTextMessage(whatsappNumber, formatWelcomeMessage(senderName));
+      }
 
       // Verificar se usuário precisa configurar integrações
-      if (!user.google_access_token || !user.notion_token) {
+      const needsGoogle = !user.google_access_token;
+      const needsNotion = !user.notion_token;
+
+      if (needsGoogle || needsNotion) {
+        // Enviar links de configuração
         await sendTextMessage(
           whatsappNumber,
-          `⚙️ *Configuração necessária*\n\nPara usar todas as funcionalidades, você precisa conectar:\n\n${!user.google_access_token ? '❌ Google Calendar\n' : '✅ Google Calendar\n'}${!user.notion_token ? '❌ Notion\n' : '✅ Notion\n'}\nEntre em contato com o administrador para configurar suas integrações.`
+          formatSetupMessage(whatsappNumber, env.appUrl)
         );
+        return;
       }
-      return;
     }
 
     // Obter texto da mensagem (transcrever se for áudio)
@@ -174,7 +183,7 @@ async function processScheduling(
   if (!user.google_access_token || !user.google_refresh_token) {
     await sendTextMessage(
       whatsappNumber,
-      '⚠️ Você precisa conectar seu Google Calendar para agendar compromissos.\n\nEntre em contato com o administrador para configurar.'
+      `⚠️ Você precisa conectar seu Google Calendar primeiro.\n\n🔗 Clique aqui para configurar:\n${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
     );
     return;
   }
@@ -253,7 +262,7 @@ async function handleViewAgenda(user: User): Promise<void> {
   if (!user.google_access_token || !user.google_refresh_token) {
     await sendTextMessage(
       whatsappNumber,
-      '⚠️ Você precisa conectar seu Google Calendar para ver sua agenda.\n\nEntre em contato com o administrador para configurar.'
+      `⚠️ Você precisa conectar seu Google Calendar primeiro.\n\n🔗 Clique aqui para configurar:\n${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
     );
     return;
   }
