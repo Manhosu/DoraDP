@@ -9,7 +9,8 @@ const WHATSAPP_API_URL = 'https://graph.facebook.com/v18.0';
  */
 export async function sendTextMessage(
   to: string,
-  message: string
+  message: string,
+  enableLinkPreview = true
 ): Promise<ServiceResponse<{ messageId: string }>> {
   try {
     const response = await axios.post(
@@ -20,7 +21,7 @@ export async function sendTextMessage(
         to: to,
         type: 'text',
         text: {
-          preview_url: false,
+          preview_url: enableLinkPreview,
           body: message,
         },
       },
@@ -41,6 +42,62 @@ export async function sendTextMessage(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro ao enviar mensagem',
+    };
+  }
+}
+
+/**
+ * Envia mensagem interativa com botões de URL (Call-to-Action)
+ */
+export async function sendButtonMessage(
+  to: string,
+  headerText: string,
+  bodyText: string,
+  buttons: Array<{ text: string; url: string }>
+): Promise<ServiceResponse<{ messageId: string }>> {
+  try {
+    const response = await axios.post(
+      `${WHATSAPP_API_URL}/${env.whatsappPhoneNumberId}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'interactive',
+        interactive: {
+          type: 'cta_url',
+          header: {
+            type: 'text',
+            text: headerText,
+          },
+          body: {
+            text: bodyText,
+          },
+          action: {
+            name: 'cta_url',
+            parameters: {
+              display_text: buttons[0]?.text || 'Abrir',
+              url: buttons[0]?.url || '',
+            },
+          },
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${env.whatsappToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return {
+      success: true,
+      data: { messageId: response.data.messages[0].id },
+    };
+  } catch (error) {
+    console.error('Erro ao enviar mensagem com botão:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao enviar mensagem com botão',
     };
   }
 }

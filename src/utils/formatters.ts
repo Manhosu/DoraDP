@@ -109,15 +109,15 @@ export function formatSetupMessage(whatsappNumber: string, appUrl: string): stri
 
   return `⚙️ *Configuração necessária*
 
-Para usar a DoraDP, conecte suas contas:
+Para usar a DoraDP, conecte suas contas clicando nos links abaixo:
 
 1️⃣ *Google Calendar*
-Copie e cole no navegador:
 ${gLink}
 
 2️⃣ *Notion*
-Copie e cole no navegador:
-${nLink}`;
+${nLink}
+
+_Toque no link para abrir no navegador._`;
 }
 
 /**

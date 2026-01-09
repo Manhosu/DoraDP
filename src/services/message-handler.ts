@@ -7,6 +7,7 @@ import {
   extractEventFromText,
   classifyMessage,
   sendTextMessage,
+  sendButtonMessage,
   markAsRead,
   downloadMedia,
   sendReaction,
@@ -71,11 +72,24 @@ export async function handleIncomingMessage(
       const needsNotion = !user.notion_token;
 
       if (needsGoogle || needsNotion) {
-        // Enviar links de configuração
-        await sendTextMessage(
-          whatsappNumber,
-          formatSetupMessage(whatsappNumber, env.appUrl)
-        );
+        // Enviar mensagem de configuração com botões interativos
+        if (needsGoogle) {
+          await sendButtonMessage(
+            whatsappNumber,
+            '1️⃣ Google Calendar',
+            'Clique no botão abaixo para conectar seu Google Calendar:',
+            [{ text: 'Conectar Google', url: `${env.appUrl}/g/${whatsappNumber}` }]
+          );
+        }
+
+        if (needsNotion) {
+          await sendButtonMessage(
+            whatsappNumber,
+            '2️⃣ Notion',
+            'Clique no botão abaixo para conectar seu Notion:',
+            [{ text: 'Conectar Notion', url: `${env.appUrl}/n/${whatsappNumber}` }]
+          );
+        }
         return;
       }
     }
