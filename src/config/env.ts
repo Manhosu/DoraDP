@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 function getEnvVar(key: string, required: boolean = true): string {
-  const value = process.env[key];
+  const value = process.env[key]?.trim(); // Remove espaços e quebras de linha
   if (required && !value) {
     throw new Error(`Variável de ambiente ${key} não definida`);
   }
