@@ -102,15 +102,20 @@ Dica: Quanto mais detalhes você fornecer, melhor será o registro!`;
  * Formata mensagem de configuração para novos usuários
  */
 export function formatSetupMessage(whatsappNumber: string, appUrl: string): string {
+  const gLink = `${appUrl}/g/${whatsappNumber}`;
+  const nLink = `${appUrl}/n/${whatsappNumber}`;
+
   return `⚙️ *Configuração necessária*
 
 Para usar a DoraDP, conecte suas contas:
 
 1️⃣ *Google Calendar*
-${appUrl}/g/${whatsappNumber}
+Copie e cole no navegador:
+${gLink}
 
 2️⃣ *Notion*
-${appUrl}/n/${whatsappNumber}`;
+Copie e cole no navegador:
+${nLink}`;
 }
 
 /**
