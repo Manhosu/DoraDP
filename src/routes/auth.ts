@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { getAuthUrl, exchangeCodeForTokens } from '../integrations/google-calendar.js';
-import { listDatabases } from '../integrations/notion.js';
+import { listDatabases, createDoraDatabase } from '../integrations/notion.js';
 import { getUserByWhatsAppNumber, updateGoogleTokens, updateNotionToken, completeOnboarding } from '../integrations/supabase.js';
 import { sendTextMessage } from '../integrations/whatsapp.js';
 import { formatGoogleConnectedMessage, formatNotionConnectedMessage } from '../utils/formatters.js';
@@ -274,8 +274,17 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
       databaseName = firstDb.name;
       console.log(`Notion: Database detectada automaticamente: ${databaseName} (${databaseId})`);
     } else {
-      console.log('Notion: Nenhuma database encontrada, usando workspace_id');
-      databaseId = workspace_id || '';
+      // Nenhuma database encontrada - criar automaticamente!
+      console.log('Notion: Nenhuma database encontrada, criando automaticamente...');
+      const createResult = await createDoraDatabase(access_token);
+      if (createResult.success && createResult.data) {
+        databaseId = createResult.data.id;
+        databaseName = createResult.data.name;
+        console.log(`Notion: Database criada: ${databaseName} (${databaseId})`);
+      } else {
+        console.error('Notion: Falha ao criar database:', createResult.error);
+        databaseId = workspace_id || '';
+      }
     }
 
     // Salvar token e database_id no banco
@@ -290,17 +299,15 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
     }
 
     // Mensagem de sucesso com info da database
-    const dbInfo = databaseName ? `\n\nDatabase conectada: *${databaseName}*` : '';
-    const noDatabaseWarning = !databaseName && dbResult.success ? '\n\n⚠️ Nenhuma database encontrada. Compartilhe uma database com a integração DoraDP no Notion.' : '';
+    const dbInfo = databaseName ? `\n\n📊 Database: *${databaseName}*` : '';
 
     // Enviar mensagem de confirmação no WhatsApp
-    await sendTextMessage(whatsappNumber, formatNotionConnectedMessage(hasGoogle) + dbInfo + noDatabaseWarning);
+    await sendTextMessage(whatsappNumber, formatNotionConnectedMessage(hasGoogle) + dbInfo);
 
     res.status(200).send(renderNotionPage('Sucesso', `
       <h1>Notion conectado!</h1>
       <p>Sua conta foi conectada com sucesso.</p>
-      ${databaseName ? `<p>Database: <strong>${databaseName}</strong></p>` : ''}
-      ${!databaseName ? '<p style="color: orange;">⚠️ Nenhuma database encontrada. Compartilhe uma database com a integração DoraDP no Notion.</p>' : ''}
+      ${databaseName ? `<p>📊 Database: <strong>${databaseName}</strong></p>` : ''}
       ${hasGoogle
         ? '<p><strong>Tudo pronto!</strong> Voce ja pode usar a DoraDP pelo WhatsApp.</p>'
         : '<p>Agora falta conectar o <strong>Google Calendar</strong>.</p>'

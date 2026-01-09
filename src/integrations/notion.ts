@@ -234,3 +234,86 @@ export async function listDatabases(
     };
   }
 }
+
+/**
+ * Cria uma database DoraDP automaticamente no workspace do usuário
+ */
+export async function createDoraDatabase(
+  notionToken: string
+): Promise<ServiceResponse<{ id: string; name: string }>> {
+  try {
+    const notion = getNotionClient(notionToken);
+
+    // Primeiro, buscar uma página onde podemos criar a database
+    const searchResponse = await notion.search({
+      filter: { property: 'object', value: 'page' },
+      page_size: 1,
+    });
+
+    let parentPageId: string | null = null;
+
+    if (searchResponse.results.length > 0) {
+      const page = searchResponse.results[0] as unknown as { id: string };
+      parentPageId = page.id;
+    }
+
+    const databaseName = 'DoraDP - Agenda DP';
+
+    // Se não encontrou página pai, criar uma página raiz primeiro
+    if (!parentPageId) {
+      const newPage = await notion.pages.create({
+        parent: { workspace: true } as Parameters<typeof notion.pages.create>[0]['parent'],
+        properties: {
+          title: { title: [{ text: { content: 'DoraDP' } }] },
+        },
+      }) as unknown as { id: string };
+      parentPageId = newPage.id;
+    }
+
+    // Criar a database com os campos necessários
+    const database = await notion.databases.create({
+      parent: { type: 'page_id', page_id: parentPageId },
+      title: [{ type: 'text', text: { content: databaseName } }],
+      properties: {
+        Nome: { title: {} },
+        Data: { date: {} },
+        Tipo: {
+          select: {
+            options: [
+              { name: 'audiencia', color: 'red' },
+              { name: 'reuniao', color: 'blue' },
+              { name: 'prazo', color: 'yellow' },
+              { name: 'compromisso', color: 'green' },
+              { name: 'outro', color: 'gray' },
+            ],
+          },
+        },
+        Status: {
+          select: {
+            options: [
+              { name: 'a fazer', color: 'red' },
+              { name: 'em andamento', color: 'yellow' },
+              { name: 'concluído', color: 'green' },
+            ],
+          },
+        },
+        Descrição: { rich_text: {} },
+        Local: { rich_text: {} },
+        Empresa: { rich_text: {} },
+      },
+    } as unknown as Parameters<typeof notion.databases.create>[0]) as unknown as { id: string };
+
+    console.log(`Notion: Database criada automaticamente: ${databaseName} (${database.id})`);
+
+    return {
+      success: true,
+      data: { id: database.id, name: databaseName },
+    };
+  } catch (error) {
+    console.error('Erro ao criar database no Notion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao criar database',
+    };
+  }
+}
