@@ -102,17 +102,20 @@ Dica: Quanto mais detalhes você fornecer, melhor será o registro!`;
  * Formata mensagem de configuração para novos usuários
  */
 export function formatSetupMessage(whatsappNumber: string, appUrl: string): string {
+  const googleLink = `${appUrl}/auth/google?whatsapp=${whatsappNumber}`;
+  const notionLink = `${appUrl}/setup/notion?whatsapp=${whatsappNumber}`;
+
   return `⚙️ *Configuração necessária*
 
-Para usar a DoraDP, você precisa conectar suas contas:
+Para usar a DoraDP, conecte suas contas:
 
-🔗 *1. Google Calendar:*
-${appUrl}/auth/google?whatsapp=${whatsappNumber}
+🔗 *Google Calendar:*
+${googleLink}
 
-🔗 *2. Notion:*
-${appUrl}/setup/notion?whatsapp=${whatsappNumber}
+🔗 *Notion:*
+${notionLink}
 
-Clique nos links acima para configurar. Isso só precisa ser feito uma vez!`;
+Clique nos links para configurar!`;
 }
 
 /**
