@@ -174,15 +174,19 @@ router.get('/notion', (req: Request, res: Response) => {
     return;
   }
 
+  // Codificar o estado como base64 para evitar problemas de parsing
+  const stateEncoded = Buffer.from(`wa:${whatsappNumber}`).toString('base64');
+
   const authUrl = new URL('https://api.notion.com/v1/oauth/authorize');
   authUrl.searchParams.set('client_id', env.notionClientId);
   authUrl.searchParams.set('redirect_uri', env.notionRedirectUri);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('owner', 'user');
-  authUrl.searchParams.set('state', whatsappNumber);
+  authUrl.searchParams.set('state', stateEncoded);
 
   console.log('=== Notion OAuth Debug ===');
   console.log('WhatsApp:', whatsappNumber);
+  console.log('State encoded:', stateEncoded);
   console.log('Auth URL:', authUrl.toString());
   console.log('==========================');
 
@@ -194,7 +198,7 @@ router.get('/notion', (req: Request, res: Response) => {
  */
 router.get('/notion/callback', async (req: Request, res: Response) => {
   const code = req.query.code as string;
-  const state = req.query.state as string; // whatsapp number
+  const stateEncoded = req.query.state as string;
   const error = req.query.error as string;
 
   if (error) {
@@ -206,7 +210,7 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
     return;
   }
 
-  if (!code || !state) {
+  if (!code || !stateEncoded) {
     res.status(400).send(renderNotionPage('Erro', `
       <h1>Erro na autenticacao</h1>
       <p>Parametros invalidos na resposta do Notion.</p>
@@ -215,8 +219,12 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
   }
 
   try {
+    // Decodificar o state (formato: "wa:NUMERO")
+    const stateDecoded = Buffer.from(stateEncoded, 'base64').toString('utf-8');
+    const whatsappNumber = stateDecoded.replace('wa:', '');
+
     // Buscar usuário pelo WhatsApp number
-    const userResult = await getUserByWhatsAppNumber(state);
+    const userResult = await getUserByWhatsAppNumber(whatsappNumber);
     if (!userResult.success || !userResult.data) {
       res.status(404).send(renderNotionPage('Erro', `
         <h1>Usuario nao encontrado</h1>
@@ -265,7 +273,7 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
     }
 
     // Enviar mensagem de confirmação no WhatsApp
-    await sendTextMessage(state, formatNotionConnectedMessage(hasGoogle));
+    await sendTextMessage(whatsappNumber, formatNotionConnectedMessage(hasGoogle));
 
     res.status(200).send(renderNotionPage('Sucesso', `
       <h1>Notion conectado!</h1>
