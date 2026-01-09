@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { getAuthUrl, exchangeCodeForTokens } from '../integrations/google-calendar.js';
+import { listDatabases } from '../integrations/notion.js';
 import { getUserByWhatsAppNumber, updateGoogleTokens, updateNotionToken, completeOnboarding } from '../integrations/supabase.js';
 import { sendTextMessage } from '../integrations/whatsapp.js';
 import { formatGoogleConnectedMessage, formatNotionConnectedMessage } from '../utils/formatters.js';
@@ -260,9 +261,25 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
       throw new Error('Token não recebido do Notion');
     }
 
-    // Salvar token no banco (usando workspace_id como database_id por enquanto)
-    // O usuário pode precisar selecionar a database depois
-    await updateNotionToken(user.id, access_token, duplicated_template_id || workspace_id || '');
+    // Buscar databases disponíveis automaticamente
+    let databaseId = duplicated_template_id || '';
+    let databaseName = '';
+
+    const dbResult = await listDatabases(access_token);
+    const databases = dbResult.data || [];
+    const firstDb = databases[0];
+    if (dbResult.success && firstDb) {
+      // Usar a primeira database encontrada
+      databaseId = firstDb.id;
+      databaseName = firstDb.name;
+      console.log(`Notion: Database detectada automaticamente: ${databaseName} (${databaseId})`);
+    } else {
+      console.log('Notion: Nenhuma database encontrada, usando workspace_id');
+      databaseId = workspace_id || '';
+    }
+
+    // Salvar token e database_id no banco
+    await updateNotionToken(user.id, access_token, databaseId);
 
     // Verificar se tem Google configurado
     const hasGoogle = !!user.google_access_token;
@@ -272,12 +289,18 @@ router.get('/notion/callback', async (req: Request, res: Response) => {
       await completeOnboarding(user.id);
     }
 
+    // Mensagem de sucesso com info da database
+    const dbInfo = databaseName ? `\n\nDatabase conectada: *${databaseName}*` : '';
+    const noDatabaseWarning = !databaseName && dbResult.success ? '\n\n⚠️ Nenhuma database encontrada. Compartilhe uma database com a integração DoraDP no Notion.' : '';
+
     // Enviar mensagem de confirmação no WhatsApp
-    await sendTextMessage(whatsappNumber, formatNotionConnectedMessage(hasGoogle));
+    await sendTextMessage(whatsappNumber, formatNotionConnectedMessage(hasGoogle) + dbInfo + noDatabaseWarning);
 
     res.status(200).send(renderNotionPage('Sucesso', `
       <h1>Notion conectado!</h1>
       <p>Sua conta foi conectada com sucesso.</p>
+      ${databaseName ? `<p>Database: <strong>${databaseName}</strong></p>` : ''}
+      ${!databaseName ? '<p style="color: orange;">⚠️ Nenhuma database encontrada. Compartilhe uma database com a integração DoraDP no Notion.</p>' : ''}
       ${hasGoogle
         ? '<p><strong>Tudo pronto!</strong> Voce ja pode usar a DoraDP pelo WhatsApp.</p>'
         : '<p>Agora falta conectar o <strong>Google Calendar</strong>.</p>'
