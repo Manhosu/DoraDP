@@ -1,6 +1,6 @@
 import express from 'express';
 import { env } from './config/env.js';
-import { webhookRouter, authRouter, adminRouter, testRouter, setupRouter } from './routes/index.js';
+import { webhookRouter, authRouter, adminRouter, testRouter, setupRouter, shortlinkRouter } from './routes/index.js';
 
 const app = express();
 
@@ -31,6 +31,7 @@ app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/test', testRouter);
 app.use('/setup', setupRouter);
+app.use('/', shortlinkRouter); // Links curtos: /g/:phone e /n/:phone
 
 // Rota raiz
 app.get('/', (_req, res) => {

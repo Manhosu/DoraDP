@@ -104,13 +104,13 @@ Dica: Quanto mais detalhes você fornecer, melhor será o registro!`;
 export function formatSetupMessage(whatsappNumber: string, appUrl: string): string {
   return `⚙️ *Configuração necessária*
 
-Para usar a DoraDP, conecte suas contas clicando nos links abaixo:
+Para usar a DoraDP, conecte suas contas:
 
-1️⃣ Google Calendar:
-${appUrl}/auth/google?whatsapp=${whatsappNumber}
+1️⃣ *Google Calendar*
+${appUrl}/g/${whatsappNumber}
 
-2️⃣ Notion:
-${appUrl}/setup/notion?whatsapp=${whatsappNumber}`;
+2️⃣ *Notion*
+${appUrl}/n/${whatsappNumber}`;
 }
 
 /**
