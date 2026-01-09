@@ -7,6 +7,24 @@ import { formatGoogleConnectedMessage } from '../utils/formatters.js';
 const router = Router();
 
 /**
+ * GET /auth/google/debug - Debug do OAuth (temporário)
+ */
+router.get('/google/debug', (_req: Request, res: Response) => {
+  const authUrl = getAuthUrl('debug');
+
+  res.json({
+    message: 'Debug OAuth Google',
+    authUrl: authUrl,
+    parsedUrl: {
+      fullUrl: authUrl,
+      redirectUri: new URL(authUrl).searchParams.get('redirect_uri'),
+      clientId: new URL(authUrl).searchParams.get('client_id'),
+      scope: new URL(authUrl).searchParams.get('scope'),
+    }
+  });
+});
+
+/**
  * GET /auth/google - Inicia o fluxo OAuth do Google
  * Query params:
  *   - whatsapp: número do WhatsApp do usuário
@@ -21,6 +39,13 @@ router.get('/google', (req: Request, res: Response) => {
 
   // Usar o número como state para identificar o usuário no callback
   const authUrl = getAuthUrl(whatsappNumber);
+
+  // Log para debug
+  console.log('=== OAuth Debug ===');
+  console.log('WhatsApp:', whatsappNumber);
+  console.log('Auth URL:', authUrl);
+  console.log('Redirect URI:', new URL(authUrl).searchParams.get('redirect_uri'));
+  console.log('==================');
 
   res.redirect(authUrl);
 });
