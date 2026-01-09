@@ -19,7 +19,7 @@ router.get('/g/:phone', (req: Request, res: Response) => {
 });
 
 /**
- * GET /n/:phone - Redireciona para setup do Notion
+ * GET /n/:phone - Redireciona para OAuth do Notion
  * Link curto: /n/5541999999999
  */
 router.get('/n/:phone', (req: Request, res: Response) => {
@@ -30,7 +30,7 @@ router.get('/n/:phone', (req: Request, res: Response) => {
     return;
   }
 
-  res.redirect(`/setup/notion?whatsapp=${phone}`);
+  res.redirect(`/auth/notion?whatsapp=${phone}`);
 });
 
 export default router;
