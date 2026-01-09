@@ -24,10 +24,12 @@ export function formatEventConfirmation(event: ExtractedEvent): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
   });
   const horaFormatada = dataInicio.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
   });
 
   let message = `${emoji} *${tipoFormatado} agendado(a) com sucesso!*\n\n`;
@@ -161,6 +163,7 @@ export function formatDailyAgenda(events: ExtractedEvent[]): string {
     const hora = new Date(event.data_inicio).toLocaleTimeString('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
     });
 
     message += `${index + 1}. ${emoji} *${hora}* - ${event.titulo}\n`;
