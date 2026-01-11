@@ -26,16 +26,21 @@ export function formatEventConfirmation(event: ExtractedEvent): string {
     year: 'numeric',
     timeZone: 'America/Sao_Paulo',
   });
-  const horaFormatada = dataInicio.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Sao_Paulo',
-  });
 
   let message = `${emoji} *${tipoFormatado} agendado(a) com sucesso!*\n\n`;
   message += `📋 *Título:* ${event.titulo}\n`;
   message += `📅 *Data:* ${dataFormatada}\n`;
-  message += `🕐 *Horário:* ${horaFormatada}\n`;
+
+  if (event.all_day) {
+    message += `🕐 *Horário:* Dia todo\n`;
+  } else {
+    const horaFormatada = dataInicio.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
+    message += `🕐 *Horário:* ${horaFormatada}\n`;
+  }
 
   if (event.local) {
     message += `📍 *Local:* ${event.local}\n`;
@@ -151,22 +156,47 @@ Agora falta apenas configurar o Google Calendar para finalizar.`;
 /**
  * Formata lista de eventos do dia
  */
-export function formatDailyAgenda(events: ExtractedEvent[]): string {
+export function formatDailyAgenda(events: ExtractedEvent[], targetDate?: Date): string {
+  const today = new Date();
+  const queryDate = targetDate || today;
+
+  // Verificar se é hoje
+  const isToday = queryDate.toDateString() === today.toDateString();
+
+  // Formatar título da agenda
+  const dateLabel = isToday
+    ? 'hoje'
+    : queryDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+
   if (events.length === 0) {
-    return `📅 *Agenda de hoje*\n\nVocê não tem compromissos agendados para hoje. 🎉`;
+    return `📅 *Agenda de ${dateLabel}*\n\nVocê não tem compromissos agendados para ${isToday ? 'hoje' : 'este dia'}. 🎉`;
   }
 
-  let message = `📅 *Agenda de hoje*\n\n`;
+  let message = `📅 *Agenda de ${dateLabel}*\n\n`;
 
   events.forEach((event, index) => {
     const emoji = EVENT_EMOJIS[event.tipo_evento];
-    const hora = new Date(event.data_inicio).toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Sao_Paulo',
-    });
 
-    message += `${index + 1}. ${emoji} *${hora}* - ${event.titulo}\n`;
+    // Verificar se é evento all-day (não tem 'T' no data_inicio ou é date sem time)
+    const isAllDay = !event.data_inicio.includes('T') || event.all_day;
+
+    let horaStr: string;
+    if (isAllDay) {
+      horaStr = 'Dia todo';
+    } else {
+      horaStr = new Date(event.data_inicio).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+    }
+
+    message += `${index + 1}. ${emoji} *${horaStr}* - ${event.titulo}\n`;
     if (event.local) {
       message += `   📍 ${event.local}\n`;
     }

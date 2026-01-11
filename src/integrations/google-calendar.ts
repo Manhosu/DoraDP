@@ -107,26 +107,58 @@ export async function createCalendarEvent(
   try {
     const calendar = getCalendarClient(accessToken, refreshToken, userId);
 
-    const calendarEvent: GoogleCalendarEvent = {
-      summary: event.titulo,
-      description: event.descricao || undefined,
-      location: event.local || undefined,
-      start: {
-        dateTime: event.data_inicio,
-        timeZone: timezone,
-      },
-      end: {
-        dateTime: event.data_fim || new Date(new Date(event.data_inicio).getTime() + 3600000).toISOString(),
-        timeZone: timezone,
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 30 },
-          { method: 'popup', minutes: 10 },
-        ],
-      },
-    };
+    let calendarEvent: GoogleCalendarEvent;
+
+    if (event.all_day) {
+      // Evento de dia todo - usa formato 'date' em vez de 'dateTime'
+      const startDateParts = event.data_inicio.split('T');
+      const startDate = startDateParts[0] || event.data_inicio.substring(0, 10); // Extrai YYYY-MM-DD
+      // Para all-day events, end date deve ser o dia seguinte
+      const endDateObj = new Date(startDate + 'T12:00:00Z');
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateParts = endDateObj.toISOString().split('T');
+      const endDate = endDateParts[0] || '';
+
+      calendarEvent = {
+        summary: event.titulo,
+        description: event.descricao || undefined,
+        location: event.local || undefined,
+        start: {
+          date: startDate,
+        },
+        end: {
+          date: endDate,
+        },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 480 }, // 8 horas antes
+          ],
+        },
+      };
+    } else {
+      // Evento com horário específico
+      calendarEvent = {
+        summary: event.titulo,
+        description: event.descricao || undefined,
+        location: event.local || undefined,
+        start: {
+          dateTime: event.data_inicio,
+          timeZone: timezone,
+        },
+        end: {
+          dateTime: event.data_fim || new Date(new Date(event.data_inicio).getTime() + 3600000).toISOString(),
+          timeZone: timezone,
+        },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 30 },
+            { method: 'popup', minutes: 10 },
+          ],
+        },
+      };
+    }
 
     // Adicionar participantes se existirem
     if (event.participantes && event.participantes.length > 0) {

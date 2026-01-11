@@ -31,6 +31,7 @@ export interface ExtractedEvent {
   local: string | null;
   participantes: string[] | null;
   empresa: string | null; // Nome da empresa/cliente mencionado
+  all_day?: boolean; // true se evento de dia todo (sem horário específico)
 }
 
 // --- WhatsApp Webhook Payload ---
@@ -84,12 +85,14 @@ export interface GoogleCalendarEvent {
   description?: string;
   location?: string;
   start: {
-    dateTime: string;
-    timeZone: string;
+    dateTime?: string;
+    date?: string; // Para eventos all-day (formato YYYY-MM-DD)
+    timeZone?: string;
   };
   end: {
-    dateTime: string;
-    timeZone: string;
+    dateTime?: string;
+    date?: string; // Para eventos all-day (formato YYYY-MM-DD)
+    timeZone?: string;
   };
   attendees?: Array<{
     email: string;

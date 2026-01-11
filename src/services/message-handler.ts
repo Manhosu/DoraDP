@@ -137,19 +137,21 @@ export async function handleIncomingMessage(
     }
 
     // Classificar a mensagem
-    const classificationResult = await classifyMessage(messageText);
+    const classificationResult = await classifyMessage(messageText, user.timezone);
     if (!classificationResult.success || !classificationResult.data) {
       // Tentar processar como agendamento mesmo assim
       await processScheduling(user, messageText, isAudio, message.id);
       return;
     }
 
-    const { intent, command } = classificationResult.data;
+    const { intent, target_date } = classificationResult.data;
 
     // Processar baseado na intenção
     switch (intent) {
       case 'ver_agenda':
-        await handleViewAgenda(user);
+        // Se tiver uma data específica, usa ela; senão, usa hoje
+        const targetDateObj = target_date ? new Date(target_date + 'T12:00:00') : undefined;
+        await handleViewAgenda(user, targetDateObj);
         break;
 
       case 'ajuda':
@@ -270,7 +272,7 @@ async function processScheduling(
 /**
  * Processa comando de ver agenda
  */
-async function handleViewAgenda(user: User): Promise<void> {
+async function handleViewAgenda(user: User, targetDate?: Date): Promise<void> {
   const whatsappNumber = user.whatsapp_number;
 
   if (!user.google_access_token || !user.google_refresh_token) {
@@ -281,12 +283,12 @@ async function handleViewAgenda(user: User): Promise<void> {
     return;
   }
 
-  const today = new Date();
+  const dateToQuery = targetDate || new Date();
   const eventsResult = await listEventsForDay(
     user.google_access_token,
     user.google_refresh_token,
     user.id,
-    today,
+    dateToQuery,
     user.timezone
   );
 
@@ -298,5 +300,5 @@ async function handleViewAgenda(user: User): Promise<void> {
     return;
   }
 
-  await sendTextMessage(whatsappNumber, formatDailyAgenda(eventsResult.data || []));
+  await sendTextMessage(whatsappNumber, formatDailyAgenda(eventsResult.data || [], dateToQuery));
 }

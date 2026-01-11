@@ -81,12 +81,14 @@ Analise a mensagem do usuário e extraia as informações do compromisso/prazo d
 
 REGRAS:
 1. Para datas relativas (amanhã, próxima segunda, etc.), calcule a data absoluta baseando-se na data atual.
-2. Se apenas a data for mencionada sem horário, use 09:00 como padrão.
-3. Se a duração não for especificada, assuma 1 hora para reuniões e fim do dia (23:59) para prazos.
-4. Identifique o tipo de evento: prazo (folha, férias, rescisão, etc.), reuniao, audiencia, compromisso ou outro.
-5. IMPORTANTE: Extraia o nome da EMPRESA/CLIENTE se mencionado na mensagem.
-6. Extraia local e participantes se mencionados.
-7. Se não conseguir identificar uma data, retorne data_inicio como null.
+2. Se apenas a data for mencionada SEM horário específico, marque "all_day": true (evento de dia todo).
+3. Se um horário específico for mencionado, marque "all_day": false e use esse horário.
+4. Para PRAZOS (folha de pagamento, férias, rescisão, etc.) sem horário, SEMPRE use "all_day": true.
+5. Se a duração não for especificada e não for all_day, assuma 1 hora para reuniões.
+6. Identifique o tipo de evento: prazo (folha, férias, rescisão, etc.), reuniao, audiencia, compromisso ou outro.
+7. IMPORTANTE: Extraia o nome da EMPRESA/CLIENTE se mencionado na mensagem.
+8. Extraia local e participantes se mencionados.
+9. Se não conseguir identificar uma data, retorne data_inicio como null.
 
 EXEMPLOS DE EXTRAÇÃO DE EMPRESA:
 - "Folha de pagamento empresa Eduardo G dia 30" → empresa: "Eduardo G"
@@ -102,7 +104,8 @@ FORMATO DE SAÍDA (JSON):
   "tipo_evento": "audiencia|reuniao|prazo|compromisso|outro",
   "local": "string ou null",
   "participantes": ["array de strings"] ou null,
-  "empresa": "string ou null - nome da empresa/cliente mencionado"
+  "empresa": "string ou null - nome da empresa/cliente mencionado",
+  "all_day": "boolean - true se não houver horário específico, false se houver"
 }
 
 Responda APENAS com o JSON, sem markdown ou explicações.`;
@@ -146,24 +149,41 @@ Responda APENAS com o JSON, sem markdown ou explicações.`;
  * Identifica se a mensagem é um comando ou um agendamento
  */
 export async function classifyMessage(
-  text: string
-): Promise<ServiceResponse<{ isCommand: boolean; command?: string; intent: string }>> {
+  text: string,
+  userTimezone: string = 'America/Sao_Paulo'
+): Promise<ServiceResponse<{ isCommand: boolean; command?: string; intent: string; target_date?: string }>> {
   try {
     const openai = getOpenAI();
 
-    const systemPrompt = `Classifique a mensagem do usuário em uma das categorias:
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('pt-BR', {
+      timeZone: userTimezone,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
 
-1. "ver_agenda" - usuário quer ver seus compromissos (ex: "ver agenda", "o que tenho hoje", "meus compromissos")
+    const systemPrompt = `Classifique a mensagem do usuário em uma das categorias.
+
+CONTEXTO:
+- Data atual: ${currentDate}
+
+CATEGORIAS:
+1. "ver_agenda" - usuário quer ver seus compromissos (ex: "ver agenda", "o que tenho hoje", "meus compromissos", "compromissos do dia 10")
 2. "ajuda" - usuário pede ajuda (ex: "ajuda", "help", "como funciona")
-3. "agendamento" - usuário quer agendar algo (qualquer menção a datas, compromissos, reuniões, etc.)
+3. "agendamento" - usuário quer agendar algo (qualquer menção a criar/marcar compromissos, reuniões, etc.)
 4. "saudacao" - apenas saudação sem intenção clara (ex: "oi", "olá", "bom dia")
 5. "outro" - não se encaixa em nenhuma categoria
+
+IMPORTANTE: Se a mensagem for "ver_agenda" e mencionar uma data específica (ex: "dia 10", "amanhã", "próxima segunda"), extraia essa data no formato ISO (YYYY-MM-DD).
 
 Responda APENAS com JSON:
 {
   "isCommand": boolean,
   "command": "ver_agenda|ajuda|null",
-  "intent": "ver_agenda|ajuda|agendamento|saudacao|outro"
+  "intent": "ver_agenda|ajuda|agendamento|saudacao|outro",
+  "target_date": "YYYY-MM-DD ou null se não mencionar data específica ou se for 'hoje'"
 }`;
 
     const response = await openai.chat.completions.create({
