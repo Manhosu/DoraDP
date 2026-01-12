@@ -72,10 +72,20 @@ export async function createNotionPage(
           propNameLower.includes('prazo') ||
           propNameLower.includes('quando')
         ) {
+          // Para eventos all-day, enviar apenas a data (sem hora)
+          const startDate = event.all_day
+            ? event.data_inicio.split('T')[0] || event.data_inicio
+            : event.data_inicio;
+          const endDate = event.data_fim
+            ? event.all_day
+              ? event.data_fim.split('T')[0] || event.data_fim
+              : event.data_fim
+            : undefined;
+
           properties[propName] = {
             date: {
-              start: event.data_inicio,
-              end: event.data_fim || undefined,
+              start: startDate,
+              end: endDate,
             },
           };
         }
