@@ -168,11 +168,16 @@ export async function classifyMessage(
 
 CONTEXTO:
 - Data atual: ${currentDate}
+- Este é um assistente de Departamento Pessoal (DP)
 
 CATEGORIAS:
-1. "ver_agenda" - usuário quer ver seus compromissos (ex: "ver agenda", "o que tenho hoje", "meus compromissos", "compromissos do dia 10")
+1. "ver_agenda" - usuário quer VER/CONSULTAR seus compromissos (ex: "ver agenda", "o que tenho hoje", "meus compromissos", "compromissos do dia 10")
 2. "ajuda" - usuário pede ajuda (ex: "ajuda", "help", "como funciona")
-3. "agendamento" - usuário quer agendar algo (qualquer menção a criar/marcar compromissos, reuniões, etc.)
+3. "agendamento" - usuário quer REGISTRAR/AGENDAR algo. Inclui:
+   - Prazos de DP: folha de pagamento, férias, rescisão, admissão, 13º, FGTS, INSS, eSocial
+   - Compromissos: reunião, audiência, compromisso
+   - Qualquer menção a uma data futura com um evento/tarefa
+   Exemplos: "folha de pagamento dia 10", "férias do João", "reunião amanhã às 14h"
 4. "saudacao" - apenas saudação sem intenção clara (ex: "oi", "olá", "bom dia")
 5. "outro" - não se encaixa em nenhuma categoria
 
