@@ -170,10 +170,10 @@ export async function handleIncomingMessage(
         break;
 
       default:
-        await sendTextMessage(
-          whatsappNumber,
-          `Não entendi sua mensagem. 🤔\n\nVocê quis agendar algo? Se sim, inclua detalhes como data e horário.\n\nDigite *ajuda* para ver os comandos disponíveis.`
-        );
+        // Para qualquer outra intenção, tentar processar como agendamento
+        // Se a extração de evento funcionar, é agendamento
+        // Se não funcionar, a função processScheduling já envia mensagem de erro apropriada
+        await processScheduling(user, messageText, isAudio, message.id);
     }
   } catch (error) {
     console.error('Erro ao processar mensagem:', error);
