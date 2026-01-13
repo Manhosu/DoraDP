@@ -393,24 +393,50 @@ async function handleAlterarEvento(
     return;
   }
 
-  // Construir a nova data/hora
+  // Construir a nova data/hora (considerando timezone de São Paulo)
   let newDateTime: string | undefined;
   if (new_date || new_time) {
     const currentEvent = eventsResult.data.find(e => e.google_event_id === google_event_id);
     if (currentEvent) {
+      // Extrair componentes da data atual do evento no timezone de São Paulo
       const currentDate = new Date(currentEvent.data_inicio);
+      const spFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      const parts = spFormatter.formatToParts(currentDate);
+      let year = parseInt(parts.find(p => p.type === 'year')?.value || '2024');
+      let month = parseInt(parts.find(p => p.type === 'month')?.value || '1');
+      let day = parseInt(parts.find(p => p.type === 'day')?.value || '1');
+      let hours = parseInt(parts.find(p => p.type === 'hour')?.value || '9');
+      let minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
 
+      // Aplicar nova data se fornecida
       if (new_date) {
-        const [year, month, day] = new_date.split('-').map(Number);
-        currentDate.setFullYear(year || 2024, (month || 1) - 1, day || 1);
+        const [newYear, newMonth, newDay] = new_date.split('-').map(Number);
+        year = newYear || year;
+        month = newMonth || month;
+        day = newDay || day;
       }
 
+      // Aplicar novo horário se fornecido
       if (new_time) {
-        const [hours, minutes] = new_time.split(':').map(Number);
-        currentDate.setHours(hours || 9, minutes || 0, 0, 0);
+        const [newHours, newMinutes] = new_time.split(':').map(Number);
+        hours = newHours ?? hours;
+        minutes = newMinutes ?? minutes;
       }
 
-      newDateTime = currentDate.toISOString();
+      // Construir ISO string no timezone de São Paulo
+      // São Paulo é UTC-3 (sem horário de verão desde 2019)
+      const spOffset = -3;
+      const utcHours = hours - spOffset; // Converter de SP para UTC
+      const isoDate = new Date(Date.UTC(year, month - 1, day, utcHours, minutes, 0, 0));
+      newDateTime = isoDate.toISOString();
     }
   }
 
