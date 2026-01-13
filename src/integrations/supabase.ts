@@ -206,7 +206,7 @@ export async function logEvent(
 
 /**
  * Busca eventos recentes do usuário (para alterar/cancelar)
- * Inclui eventos de hoje (mesmo que o horário já tenha passado) e futuros
+ * Apenas eventos futuros (a partir do momento atual)
  */
 export async function getUserRecentEvents(
   userId: string,
@@ -221,24 +221,12 @@ export async function getUserRecentEvents(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Início do dia de hoje no timezone de São Paulo (UTC-3)
-    const now = new Date();
-    const spFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const todayStr = spFormatter.format(now); // YYYY-MM-DD
-    // Converter início do dia em SP para UTC
-    const startOfTodaySP = new Date(todayStr + 'T00:00:00-03:00');
-
     const { data, error } = await supabase
       .from('events_log')
       .select('id, titulo, tipo_evento, data_inicio, google_event_id')
       .eq('user_id', userId)
       .not('google_event_id', 'is', null)
-      .gte('data_inicio', startOfTodaySP.toISOString()) // Eventos de hoje e futuros
+      .gte('data_inicio', new Date().toISOString()) // Apenas eventos futuros
       .order('data_inicio', { ascending: true })
       .limit(limit);
 
