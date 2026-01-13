@@ -241,3 +241,107 @@ export async function listEventsForDay(
     };
   }
 }
+
+/**
+ * Atualiza um evento no Google Calendar
+ */
+export async function updateCalendarEvent(
+  accessToken: string,
+  refreshToken: string,
+  userId: string,
+  eventId: string,
+  updates: Partial<ExtractedEvent>,
+  timezone: string = 'America/Sao_Paulo'
+): Promise<ServiceResponse<void>> {
+  try {
+    const calendar = getCalendarClient(accessToken, refreshToken, userId);
+
+    // Primeiro, buscar o evento atual
+    const currentEvent = await calendar.events.get({
+      calendarId: 'primary',
+      eventId: eventId,
+    });
+
+    if (!currentEvent.data) {
+      throw new Error('Evento não encontrado');
+    }
+
+    // Preparar as atualizações
+    const updatedEvent: GoogleCalendarEvent = {
+      summary: updates.titulo || currentEvent.data.summary || '',
+      description: updates.descricao !== undefined ? (updates.descricao || undefined) : (currentEvent.data.description || undefined),
+      location: updates.local !== undefined ? (updates.local || undefined) : (currentEvent.data.location || undefined),
+      start: {
+        dateTime: currentEvent.data.start?.dateTime || undefined,
+        date: currentEvent.data.start?.date || undefined,
+        timeZone: currentEvent.data.start?.timeZone || undefined,
+      },
+      end: {
+        dateTime: currentEvent.data.end?.dateTime || undefined,
+        date: currentEvent.data.end?.date || undefined,
+        timeZone: currentEvent.data.end?.timeZone || undefined,
+      },
+    };
+
+    // Atualizar datas se fornecidas
+    if (updates.data_inicio) {
+      if (updates.all_day) {
+        const startDate = updates.data_inicio.split('T')[0] || '';
+        const endDateObj = new Date(startDate + 'T12:00:00Z');
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        updatedEvent.start = { date: startDate };
+        updatedEvent.end = { date: endDateObj.toISOString().split('T')[0] || '' };
+      } else {
+        updatedEvent.start = {
+          dateTime: updates.data_inicio,
+          timeZone: timezone,
+        };
+        updatedEvent.end = {
+          dateTime: updates.data_fim || new Date(new Date(updates.data_inicio).getTime() + 3600000).toISOString(),
+          timeZone: timezone,
+        };
+      }
+    }
+
+    await calendar.events.update({
+      calendarId: 'primary',
+      eventId: eventId,
+      requestBody: updatedEvent,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Erro ao atualizar evento no Google Calendar:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao atualizar evento',
+    };
+  }
+}
+
+/**
+ * Deleta um evento do Google Calendar
+ */
+export async function deleteCalendarEvent(
+  accessToken: string,
+  refreshToken: string,
+  userId: string,
+  eventId: string
+): Promise<ServiceResponse<void>> {
+  try {
+    const calendar = getCalendarClient(accessToken, refreshToken, userId);
+
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId: eventId,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Erro ao deletar evento no Google Calendar:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao deletar evento',
+    };
+  }
+}

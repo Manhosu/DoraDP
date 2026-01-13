@@ -50,7 +50,7 @@ export function formatEventConfirmation(event: ExtractedEvent): string {
     message += `\n📝 *Descrição:* ${event.descricao}\n`;
   }
 
-  message += `\n✅ Evento salvo no Google Calendar e Notion.`;
+  message += `\n✅ Evento salvo no Google Calendar.`;
 
   return message;
 }
@@ -83,7 +83,7 @@ Basta me enviar uma mensagem de texto ou áudio com os detalhes. Por exemplo:
 
 _"Folha de pagamento empresa X dia 30/12"_
 
-Eu vou extrair as informações e salvar no seu Google Calendar e Notion automaticamente!`;
+Eu vou extrair as informações e salvar no seu Google Calendar automaticamente!`;
 }
 
 /**
@@ -110,17 +110,13 @@ Dica: Quanto mais detalhes você fornecer, melhor será o registro!`;
  */
 export function formatSetupMessage(whatsappNumber: string, appUrl: string): string {
   const gLink = `${appUrl}/g/${whatsappNumber}`;
-  const nLink = `${appUrl}/n/${whatsappNumber}`;
 
   return `⚙️ *Configuração necessária*
 
-Para usar a DoraDP, conecte suas contas clicando nos links abaixo:
+Para usar a DoraDP, conecte seu Google Calendar clicando no link abaixo:
 
-1️⃣ *Google Calendar*
+📅 *Google Calendar*
 ${gLink}
-
-2️⃣ *Notion*
-${nLink}
 
 _Toque no link para abrir no navegador._`;
 }
@@ -128,29 +124,15 @@ _Toque no link para abrir no navegador._`;
 /**
  * Formata mensagem de Google conectado
  */
-export function formatGoogleConnectedMessage(hasNotion: boolean): string {
-  if (hasNotion) {
-    return `✅ *Google Calendar conectado com sucesso!*
-
-Tudo pronto! Agora você pode enviar mensagens para agendar seus compromissos de DP.`;
-  }
+export function formatGoogleConnectedMessage(): string {
   return `✅ *Google Calendar conectado com sucesso!*
 
-Agora falta apenas configurar o Notion para finalizar.`;
-}
+Tudo pronto! Agora você pode enviar mensagens para agendar seus compromissos de DP.
 
-/**
- * Formata mensagem de Notion conectado
- */
-export function formatNotionConnectedMessage(hasGoogle: boolean): string {
-  if (hasGoogle) {
-    return `✅ *Notion conectado com sucesso!*
-
-Tudo pronto! Agora você pode enviar mensagens para agendar seus compromissos de DP.`;
-  }
-  return `✅ *Notion conectado com sucesso!*
-
-Agora falta apenas configurar o Google Calendar para finalizar.`;
+Exemplos:
+• "Folha de pagamento empresa X dia 10"
+• "Férias do João a partir de 15/02"
+• "Reunião com cliente amanhã às 14h"`;
 }
 
 /**

@@ -3,10 +3,8 @@ import {
   getUserByWhatsAppNumber,
   createUser,
   updateGoogleTokens,
-  updateNotionToken,
   completeOnboarding,
 } from '../integrations/supabase.js';
-import { listDatabases, validateNotionAccess } from '../integrations/notion.js';
 import { getAuthUrl } from '../integrations/google-calendar.js';
 import { env } from '../config/env.js';
 
@@ -60,8 +58,6 @@ router.get('/users/:whatsapp', async (req: Request, res: Response) => {
     full_name: user?.full_name,
     timezone: user?.timezone,
     has_google: !!user?.google_access_token,
-    has_notion: !!user?.notion_token,
-    notion_database_id: user?.notion_database_id,
     onboarding_completed: user?.onboarding_completed,
     created_at: user?.created_at,
   });
@@ -123,80 +119,6 @@ router.get('/users/:whatsapp/google-auth-url', async (req: Request, res: Respons
   res.json({
     message: 'Envie esta URL para o usuário autorizar o Google Calendar',
     auth_url: authUrl,
-  });
-});
-
-/**
- * POST /admin/users/:whatsapp/notion - Configura o Notion para um usuário
- */
-router.post('/users/:whatsapp/notion', async (req: Request, res: Response) => {
-  const whatsapp = req.params.whatsapp;
-  const { notion_token, database_id } = req.body;
-
-  if (!whatsapp) {
-    res.status(400).json({ error: 'whatsapp é obrigatório' });
-    return;
-  }
-
-  if (!notion_token || !database_id) {
-    res.status(400).json({ error: 'notion_token e database_id são obrigatórios' });
-    return;
-  }
-
-  const userResult = await getUserByWhatsAppNumber(whatsapp);
-  if (!userResult.success || !userResult.data) {
-    res.status(404).json({ error: 'Usuário não encontrado' });
-    return;
-  }
-
-  // Validar acesso ao Notion
-  const validationResult = await validateNotionAccess(notion_token, database_id);
-  if (!validationResult.success) {
-    res.status(400).json({
-      error: 'Token do Notion inválido ou sem acesso à database',
-      details: validationResult.error,
-    });
-    return;
-  }
-
-  // Atualizar token
-  const updateResult = await updateNotionToken(userResult.data.id, notion_token, database_id);
-  if (!updateResult.success) {
-    res.status(500).json({ error: updateResult.error });
-    return;
-  }
-
-  // Se já tem Google configurado, completar onboarding
-  if (userResult.data.google_access_token) {
-    await completeOnboarding(userResult.data.id);
-  }
-
-  res.json({
-    message: 'Notion configurado com sucesso',
-    database_name: validationResult.data?.databaseName,
-  });
-});
-
-/**
- * GET /admin/notion/databases - Lista databases de um token Notion
- */
-router.get('/notion/databases', async (req: Request, res: Response) => {
-  const notionToken = req.query.token as string;
-
-  if (!notionToken) {
-    res.status(400).json({ error: 'Query param "token" é obrigatório' });
-    return;
-  }
-
-  const result = await listDatabases(notionToken);
-
-  if (!result.success) {
-    res.status(400).json({ error: result.error });
-    return;
-  }
-
-  res.json({
-    databases: result.data,
   });
 });
 

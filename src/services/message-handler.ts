@@ -3,17 +3,23 @@ import {
   getUserByWhatsAppNumber,
   createUser,
   logEvent,
+  createReminder,
+  getUserRecentEvents,
+  deleteRemindersByGoogleEventId,
+  updateReminderByGoogleEventId,
   transcribeAudio,
   extractEventFromText,
   classifyMessage,
+  identifyEventToModify,
   sendTextMessage,
   sendButtonMessage,
   markAsRead,
   downloadMedia,
   sendReaction,
   createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
   listEventsForDay,
-  createNotionPage,
 } from '../integrations/index.js';
 import {
   formatEventConfirmation,
@@ -67,29 +73,16 @@ export async function handleIncomingMessage(
         await sendTextMessage(whatsappNumber, formatWelcomeMessage(senderName));
       }
 
-      // Verificar se usuário precisa configurar integrações
+      // Verificar se usuário precisa configurar Google Calendar
       const needsGoogle = !user.google_access_token;
-      const needsNotion = !user.notion_token;
 
-      if (needsGoogle || needsNotion) {
-        // Enviar mensagem de configuração com botões interativos
-        if (needsGoogle) {
-          await sendButtonMessage(
-            whatsappNumber,
-            '1️⃣ Google Calendar',
-            'Clique no botão abaixo para conectar seu Google Calendar:',
-            [{ text: 'Conectar Google', url: `${env.appUrl}/g/${whatsappNumber}` }]
-          );
-        }
-
-        if (needsNotion) {
-          await sendButtonMessage(
-            whatsappNumber,
-            '2️⃣ Notion',
-            'Clique no botão abaixo para conectar seu Notion:',
-            [{ text: 'Conectar Notion', url: `${env.appUrl}/n/${whatsappNumber}` }]
-          );
-        }
+      if (needsGoogle) {
+        await sendButtonMessage(
+          whatsappNumber,
+          '📅 Google Calendar',
+          'Clique no botão abaixo para conectar seu Google Calendar:',
+          [{ text: 'Conectar Google', url: `${env.appUrl}/g/${whatsappNumber}` }]
+        );
         return;
       }
     }
@@ -161,12 +154,34 @@ export async function handleIncomingMessage(
       case 'saudacao':
         await sendTextMessage(
           whatsappNumber,
-          `Olá! 👋 Como posso ajudá-lo hoje?\n\nEnvie uma mensagem descrevendo um compromisso ou digite *ajuda* para ver os comandos.`
+          `Olá! 👋 Como posso ajudá-lo hoje?\n\nEnvie uma mensagem descrevendo um compromisso de DP ou digite *ajuda* para ver os comandos.`
+        );
+        break;
+
+      case 'fora_do_escopo':
+        await sendTextMessage(
+          whatsappNumber,
+          `❌ *Desculpe, só posso ajudar com assuntos de Departamento Pessoal.*\n\n` +
+          `Exemplos do que posso agendar:\n` +
+          `• Folha de pagamento, 13º, adiantamento\n` +
+          `• Férias, rescisão, admissão\n` +
+          `• FGTS, INSS, eSocial, DCTFWeb\n` +
+          `• Audiências trabalhistas\n` +
+          `• Reuniões de trabalho\n\n` +
+          `Como posso ajudá-lo com DP?`
         );
         break;
 
       case 'agendamento':
         await processScheduling(user, messageText, isAudio, message.id);
+        break;
+
+      case 'alterar':
+        await handleAlterarEvento(user, messageText, message.id);
+        break;
+
+      case 'cancelar':
+        await handleCancelarEvento(user, messageText, message.id);
         break;
 
       default:
@@ -234,35 +249,36 @@ async function processScheduling(
     console.error('Erro ao criar evento no Calendar:', calendarResult.error);
   }
 
-  // Criar página no Notion (se configurado)
-  let notionPageId: string | undefined;
-  if (user.notion_token && user.notion_database_id) {
-    const notionResult = await createNotionPage(
-      user.notion_token,
-      user.notion_database_id,
-      event
-    );
-
-    if (notionResult.success && notionResult.data) {
-      notionPageId = notionResult.data.pageId;
-    } else {
-      console.error('Erro ao criar página no Notion:', notionResult.error);
-    }
-  }
-
   // Registrar no log
-  await logEvent(user.id, {
+  const logResult = await logEvent(user.id, {
     titulo: event.titulo,
     tipo_evento: event.tipo_evento,
     data_inicio: event.data_inicio,
     data_fim: event.data_fim || undefined,
     descricao: event.descricao || undefined,
     google_event_id: googleEventId,
-    notion_page_id: notionPageId,
     mensagem_original: messageText,
     foi_audio: isAudio,
     status: googleEventId ? 'synced_google' : 'created',
   });
+
+  // Criar lembrete (apenas para eventos com horário específico, não all-day)
+  if (googleEventId && !event.all_day) {
+    const eventDateTime = new Date(event.data_inicio);
+    const reminderTime = new Date(eventDateTime.getTime() - 10 * 60 * 1000); // 10 minutos antes
+
+    // Só criar lembrete se ainda der tempo (evento é no futuro)
+    if (reminderTime > new Date()) {
+      await createReminder({
+        user_id: user.id,
+        event_log_id: logResult.data?.id,
+        google_event_id: googleEventId,
+        event_title: event.titulo,
+        event_datetime: event.data_inicio,
+        reminder_time: reminderTime.toISOString(),
+      });
+    }
+  }
 
   // Enviar confirmação
   await sendReaction(whatsappNumber, messageId, '✅');
@@ -301,4 +317,260 @@ async function handleViewAgenda(user: User, targetDate?: Date): Promise<void> {
   }
 
   await sendTextMessage(whatsappNumber, formatDailyAgenda(eventsResult.data || [], dateToQuery));
+}
+
+/**
+ * Processa comando de alterar evento
+ */
+async function handleAlterarEvento(
+  user: User,
+  messageText: string,
+  messageId: string
+): Promise<void> {
+  const whatsappNumber = user.whatsapp_number;
+
+  if (!user.google_access_token || !user.google_refresh_token) {
+    await sendTextMessage(
+      whatsappNumber,
+      `⚠️ Você precisa conectar seu Google Calendar primeiro.\n\n🔗 Clique aqui para configurar:\n${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+    );
+    return;
+  }
+
+  await sendReaction(whatsappNumber, messageId, '⏳');
+
+  // Buscar eventos recentes do usuário
+  const eventsResult = await getUserRecentEvents(user.id);
+
+  if (!eventsResult.success || !eventsResult.data || eventsResult.data.length === 0) {
+    await sendTextMessage(
+      whatsappNumber,
+      `📅 Você não tem compromissos futuros para alterar.\n\nEnvie uma mensagem para criar um novo agendamento.`
+    );
+    return;
+  }
+
+  // Identificar qual evento e quais alterações
+  const identifyResult = await identifyEventToModify(
+    messageText,
+    eventsResult.data,
+    user.timezone
+  );
+
+  if (!identifyResult.success || !identifyResult.data) {
+    await sendTextMessage(
+      whatsappNumber,
+      formatErrorMessage('Não consegui processar sua solicitação. Tente novamente.')
+    );
+    return;
+  }
+
+  const { google_event_id, new_date, new_time, confidence } = identifyResult.data;
+
+  // Se não conseguiu identificar o evento com confiança
+  if (confidence === 'none' || confidence === 'low' || !google_event_id) {
+    // Listar os eventos para o usuário escolher
+    const eventsList = eventsResult.data.map((e, i) => {
+      const date = new Date(e.data_inicio);
+      const dateStr = date.toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+      const timeStr = date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+      return `${i + 1}. ${e.titulo} - ${dateStr} às ${timeStr}`;
+    }).join('\n');
+
+    await sendTextMessage(
+      whatsappNumber,
+      `🤔 *Qual compromisso você quer alterar?*\n\nSeus próximos compromissos:\n${eventsList}\n\n_Diga algo como: "remarcar o primeiro para dia 15" ou "alterar reunião para às 14h"_`
+    );
+    return;
+  }
+
+  // Construir a nova data/hora
+  let newDateTime: string | undefined;
+  if (new_date || new_time) {
+    const currentEvent = eventsResult.data.find(e => e.google_event_id === google_event_id);
+    if (currentEvent) {
+      const currentDate = new Date(currentEvent.data_inicio);
+
+      if (new_date) {
+        const [year, month, day] = new_date.split('-').map(Number);
+        currentDate.setFullYear(year || 2024, (month || 1) - 1, day || 1);
+      }
+
+      if (new_time) {
+        const [hours, minutes] = new_time.split(':').map(Number);
+        currentDate.setHours(hours || 9, minutes || 0, 0, 0);
+      }
+
+      newDateTime = currentDate.toISOString();
+    }
+  }
+
+  if (!newDateTime) {
+    await sendTextMessage(
+      whatsappNumber,
+      `🤔 *Para qual data/horário você quer remarcar?*\n\nExemplos:\n• "Para dia 15"\n• "Para às 14h"\n• "Para amanhã às 10h"`
+    );
+    return;
+  }
+
+  // Atualizar no Google Calendar
+  const updateResult = await updateCalendarEvent(
+    user.google_access_token,
+    user.google_refresh_token,
+    user.id,
+    google_event_id,
+    { data_inicio: newDateTime },
+    user.timezone
+  );
+
+  if (!updateResult.success) {
+    await sendTextMessage(
+      whatsappNumber,
+      formatErrorMessage('Não consegui alterar o compromisso. Tente novamente.')
+    );
+    return;
+  }
+
+  // Atualizar o lembrete também
+  const reminderTime = new Date(new Date(newDateTime).getTime() - 10 * 60 * 1000);
+  if (reminderTime > new Date()) {
+    await updateReminderByGoogleEventId(google_event_id, {
+      event_datetime: newDateTime,
+      reminder_time: reminderTime.toISOString(),
+    });
+  } else {
+    // Se o evento for muito em breve, deletar o lembrete
+    await deleteRemindersByGoogleEventId(google_event_id);
+  }
+
+  const newDate = new Date(newDateTime);
+  const formattedDate = newDate.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+  const formattedTime = newDate.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+
+  await sendReaction(whatsappNumber, messageId, '✅');
+  await sendTextMessage(
+    whatsappNumber,
+    `✅ *Compromisso alterado com sucesso!*\n\n📅 Nova data: ${formattedDate}\n🕐 Novo horário: ${formattedTime}`
+  );
+}
+
+/**
+ * Processa comando de cancelar evento
+ */
+async function handleCancelarEvento(
+  user: User,
+  messageText: string,
+  messageId: string
+): Promise<void> {
+  const whatsappNumber = user.whatsapp_number;
+
+  if (!user.google_access_token || !user.google_refresh_token) {
+    await sendTextMessage(
+      whatsappNumber,
+      `⚠️ Você precisa conectar seu Google Calendar primeiro.\n\n🔗 Clique aqui para configurar:\n${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+    );
+    return;
+  }
+
+  await sendReaction(whatsappNumber, messageId, '⏳');
+
+  // Buscar eventos recentes do usuário
+  const eventsResult = await getUserRecentEvents(user.id);
+
+  if (!eventsResult.success || !eventsResult.data || eventsResult.data.length === 0) {
+    await sendTextMessage(
+      whatsappNumber,
+      `📅 Você não tem compromissos futuros para cancelar.`
+    );
+    return;
+  }
+
+  // Identificar qual evento
+  const identifyResult = await identifyEventToModify(
+    messageText,
+    eventsResult.data,
+    user.timezone
+  );
+
+  if (!identifyResult.success || !identifyResult.data) {
+    await sendTextMessage(
+      whatsappNumber,
+      formatErrorMessage('Não consegui processar sua solicitação. Tente novamente.')
+    );
+    return;
+  }
+
+  const { google_event_id, matched_event_id, confidence } = identifyResult.data;
+
+  // Se não conseguiu identificar o evento com confiança
+  if (confidence === 'none' || confidence === 'low' || !google_event_id) {
+    // Listar os eventos para o usuário escolher
+    const eventsList = eventsResult.data.map((e, i) => {
+      const date = new Date(e.data_inicio);
+      const dateStr = date.toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+      const timeStr = date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      });
+      return `${i + 1}. ${e.titulo} - ${dateStr} às ${timeStr}`;
+    }).join('\n');
+
+    await sendTextMessage(
+      whatsappNumber,
+      `🤔 *Qual compromisso você quer cancelar?*\n\nSeus próximos compromissos:\n${eventsList}\n\n_Diga algo como: "cancelar o primeiro" ou "cancelar a reunião"_`
+    );
+    return;
+  }
+
+  // Encontrar o evento para mostrar no feedback
+  const eventToCancel = eventsResult.data.find(e => e.google_event_id === google_event_id);
+
+  // Deletar do Google Calendar
+  const deleteResult = await deleteCalendarEvent(
+    user.google_access_token,
+    user.google_refresh_token,
+    user.id,
+    google_event_id
+  );
+
+  if (!deleteResult.success) {
+    await sendTextMessage(
+      whatsappNumber,
+      formatErrorMessage('Não consegui cancelar o compromisso. Tente novamente.')
+    );
+    return;
+  }
+
+  // Deletar o lembrete também
+  await deleteRemindersByGoogleEventId(google_event_id);
+
+  await sendReaction(whatsappNumber, messageId, '✅');
+  await sendTextMessage(
+    whatsappNumber,
+    `✅ *Compromisso cancelado com sucesso!*\n\n❌ ${eventToCancel?.titulo || 'Compromisso'} foi removido da sua agenda.`
+  );
 }

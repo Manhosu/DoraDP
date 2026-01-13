@@ -18,19 +18,4 @@ router.get('/g/:phone', (req: Request, res: Response) => {
   res.redirect(`/auth/google?whatsapp=${phone}`);
 });
 
-/**
- * GET /n/:phone - Redireciona para OAuth do Notion
- * Link curto: /n/5541999999999
- */
-router.get('/n/:phone', (req: Request, res: Response) => {
-  const phone = req.params.phone;
-
-  if (!phone || phone.length < 10) {
-    res.status(400).send('Número inválido');
-    return;
-  }
-
-  res.redirect(`/auth/notion?whatsapp=${phone}`);
-});
-
 export default router;

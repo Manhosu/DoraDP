@@ -1,6 +1,7 @@
 import express from 'express';
 import { env } from './config/env.js';
-import { webhookRouter, authRouter, adminRouter, testRouter, setupRouter, shortlinkRouter } from './routes/index.js';
+import { webhookRouter, authRouter, adminRouter, testRouter, shortlinkRouter } from './routes/index.js';
+import { startReminderScheduler } from './services/reminder-scheduler.js';
 
 const app = express();
 
@@ -30,8 +31,7 @@ app.use('/webhook', webhookRouter);
 app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/test', testRouter);
-app.use('/setup', setupRouter);
-app.use('/', shortlinkRouter); // Links curtos: /g/:phone e /n/:phone
+app.use('/', shortlinkRouter); // Links curtos: /g/:phone
 
 // Rota raiz
 app.get('/', (_req, res) => {
@@ -43,7 +43,6 @@ app.get('/', (_req, res) => {
       health: '/health',
       webhook: '/webhook',
       auth: '/auth/google',
-      setup: '/setup/notion',
       admin: '/admin (requer autenticação)',
       test: '/test (apenas em desenvolvimento)',
     },
@@ -74,13 +73,15 @@ app.listen(PORT, () => {
   console.log(`   GET  /health          - Health check`);
   console.log(`   POST /webhook         - Webhook WhatsApp`);
   console.log(`   GET  /auth/google     - OAuth Google`);
-  console.log(`   GET  /setup/notion    - Config Notion`);
   console.log(`   *    /admin/*         - Administração`);
   if (env.nodeEnv === 'development') {
     console.log(`   *    /test/*          - Testes (dev only)`);
   }
   console.log('='.repeat(50));
   console.log('');
+
+  // Iniciar scheduler de lembretes
+  startReminderScheduler();
 });
 
 export default app;

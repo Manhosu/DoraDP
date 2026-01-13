@@ -36,11 +36,6 @@ export const env = {
   googleClientSecret: getEnvVar('GOOGLE_CLIENT_SECRET'),
   googleRedirectUri: getEnvVar('GOOGLE_REDIRECT_URI'),
 
-  // Notion OAuth
-  notionClientId: getEnvVar('NOTION_CLIENT_ID', false),
-  notionClientSecret: getEnvVar('NOTION_CLIENT_SECRET', false),
-  notionRedirectUri: getEnvVar('NOTION_REDIRECT_URI', false) || 'https://doradp.onrender.com/auth/notion/callback',
-
   // Criptografia
   encryptionKey: getEnvVar('ENCRYPTION_KEY'),
 };

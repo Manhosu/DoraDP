@@ -10,8 +10,6 @@ export interface User {
   google_access_token: string | null;
   google_refresh_token: string | null;
   google_token_expiry: string | null;
-  notion_token: string | null;
-  notion_database_id: string | null;
   timezone: string;
   is_active: boolean;
   onboarding_completed: boolean;
@@ -106,9 +104,19 @@ export interface GoogleCalendarEvent {
   };
 }
 
-// --- Notion ---
-export interface NotionPageProperties {
-  [key: string]: unknown;
+// --- Lembretes ---
+export interface Reminder {
+  id: string;
+  user_id: string;
+  event_log_id: string | null;
+  google_event_id: string | null;
+  event_title: string;
+  event_datetime: string;
+  reminder_time: string;
+  sent: boolean;
+  created_at: string;
+  // Campos de join com users
+  whatsapp_number?: string;
 }
 
 // --- Respostas de serviço ---

@@ -1,0 +1,83 @@
+import cron from 'node-cron';
+import { getPendingReminders, markReminderAsSent } from '../integrations/supabase.js';
+import { sendTextMessage } from '../integrations/whatsapp.js';
+import type { Reminder } from '../types/index.js';
+
+/**
+ * Formata mensagem de lembrete
+ */
+function formatReminderMessage(reminder: Reminder): string {
+  const eventDate = new Date(reminder.event_datetime);
+
+  // Formatar hora
+  const hora = eventDate.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+
+  // Formatar data
+  const data = eventDate.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+
+  return `⏰ *Lembrete - 10 minutos!*\n\n` +
+    `📋 *${reminder.event_title}*\n` +
+    `📅 ${data}\n` +
+    `🕐 ${hora}\n\n` +
+    `_O compromisso começa em breve._`;
+}
+
+/**
+ * Processa e envia lembretes pendentes
+ */
+async function processReminders(): Promise<void> {
+  try {
+    const result = await getPendingReminders();
+
+    if (!result.success || !result.data || result.data.length === 0) {
+      return;
+    }
+
+    console.log(`[Scheduler] Processando ${result.data.length} lembrete(s)...`);
+
+    for (const reminder of result.data) {
+      try {
+        if (!reminder.whatsapp_number) {
+          console.error(`[Scheduler] Lembrete ${reminder.id} sem número de WhatsApp`);
+          continue;
+        }
+
+        // Enviar mensagem de lembrete
+        await sendTextMessage(reminder.whatsapp_number, formatReminderMessage(reminder));
+
+        // Marcar como enviado
+        await markReminderAsSent(reminder.id);
+
+        console.log(`[Scheduler] Lembrete enviado: ${reminder.event_title} para ${reminder.whatsapp_number}`);
+      } catch (error) {
+        console.error(`[Scheduler] Erro ao enviar lembrete ${reminder.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Scheduler] Erro ao processar lembretes:', error);
+  }
+}
+
+/**
+ * Inicia o scheduler de lembretes
+ * Executa a cada minuto para verificar lembretes pendentes
+ */
+export function startReminderScheduler(): void {
+  console.log('[Scheduler] Iniciando scheduler de lembretes...');
+
+  // Executar a cada minuto
+  cron.schedule('* * * * *', () => {
+    processReminders();
+  });
+
+  console.log('[Scheduler] Scheduler iniciado. Verificando lembretes a cada minuto.');
+}
