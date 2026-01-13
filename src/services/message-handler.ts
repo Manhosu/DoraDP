@@ -531,13 +531,13 @@ async function handleCancelarEvento(
 
   const msgLower = messageText.toLowerCase();
 
-  // Detectar cancelamento em lote (todos, tudo) com filtro de data (hoje, amanhã)
-  const isBatchCancel = /\b(todos?|tudo)\b/.test(msgLower);
+  // Detectar cancelamento em lote (todos, tudo, esses)
+  const isBatchCancel = /\b(todos?|tudo|esses?)\b/.test(msgLower);
   const isToday = /\bhoje\b/.test(msgLower);
   const isTomorrow = /\bamanh[aã]\b/.test(msgLower);
 
-  if (isBatchCancel && (isToday || isTomorrow)) {
-    // Cancelamento em lote por data
+  if (isBatchCancel) {
+    // Cancelamento em lote
     const now = new Date();
     const spFormatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Sao_Paulo',
@@ -546,30 +546,36 @@ async function handleCancelarEvento(
       day: '2-digit',
     });
 
-    let targetDateStr: string;
-    if (isTomorrow) {
-      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      targetDateStr = spFormatter.format(tomorrow);
-    } else {
-      targetDateStr = spFormatter.format(now);
-    }
+    let eventsToCancel = eventsResult.data.filter(e => e.google_event_id);
+    let dateLabel = '';
 
-    // Filtrar eventos da data alvo
-    const eventsToCancel = eventsResult.data.filter(e => {
-      const eventDate = new Date(e.data_inicio);
-      const eventDateStr = spFormatter.format(eventDate);
-      return eventDateStr === targetDateStr && e.google_event_id;
-    });
+    // Se especificou data, filtrar por ela
+    if (isToday) {
+      const todayStr = spFormatter.format(now);
+      eventsToCancel = eventsToCancel.filter(e => {
+        const eventDateStr = spFormatter.format(new Date(e.data_inicio));
+        return eventDateStr === todayStr;
+      });
+      dateLabel = ' de hoje';
+    } else if (isTomorrow) {
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const tomorrowStr = spFormatter.format(tomorrow);
+      eventsToCancel = eventsToCancel.filter(e => {
+        const eventDateStr = spFormatter.format(new Date(e.data_inicio));
+        return eventDateStr === tomorrowStr;
+      });
+      dateLabel = ' de amanhã';
+    }
 
     if (eventsToCancel.length === 0) {
       await sendTextMessage(
         whatsappNumber,
-        `📅 Você não tem compromissos para ${isToday ? 'hoje' : 'amanhã'}.`
+        `📅 Você não tem compromissos${dateLabel} para cancelar.`
       );
       return;
     }
 
-    // Cancelar todos os eventos da data
+    // Cancelar todos os eventos
     let canceledCount = 0;
     const canceledTitles: string[] = [];
 
@@ -591,10 +597,9 @@ async function handleCancelarEvento(
     }
 
     await sendReaction(whatsappNumber, messageId, '✅');
-    const dateLabel = isToday ? 'hoje' : 'amanhã';
     await sendTextMessage(
       whatsappNumber,
-      `✅ *${canceledCount} compromisso(s) de ${dateLabel} cancelado(s)!*\n\n❌ ${canceledTitles.join('\n❌ ')}`
+      `✅ *${canceledCount} compromisso(s)${dateLabel} cancelado(s)!*\n\n❌ ${canceledTitles.join('\n❌ ')}`
     );
     return;
   }
