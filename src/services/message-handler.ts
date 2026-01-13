@@ -529,7 +529,77 @@ async function handleCancelarEvento(
     return;
   }
 
-  // Identificar qual evento
+  const msgLower = messageText.toLowerCase();
+
+  // Detectar cancelamento em lote (todos, tudo) com filtro de data (hoje, amanhã)
+  const isBatchCancel = /\b(todos?|tudo)\b/.test(msgLower);
+  const isToday = /\bhoje\b/.test(msgLower);
+  const isTomorrow = /\bamanh[aã]\b/.test(msgLower);
+
+  if (isBatchCancel && (isToday || isTomorrow)) {
+    // Cancelamento em lote por data
+    const now = new Date();
+    const spFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    let targetDateStr: string;
+    if (isTomorrow) {
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      targetDateStr = spFormatter.format(tomorrow);
+    } else {
+      targetDateStr = spFormatter.format(now);
+    }
+
+    // Filtrar eventos da data alvo
+    const eventsToCancel = eventsResult.data.filter(e => {
+      const eventDate = new Date(e.data_inicio);
+      const eventDateStr = spFormatter.format(eventDate);
+      return eventDateStr === targetDateStr && e.google_event_id;
+    });
+
+    if (eventsToCancel.length === 0) {
+      await sendTextMessage(
+        whatsappNumber,
+        `📅 Você não tem compromissos para ${isToday ? 'hoje' : 'amanhã'}.`
+      );
+      return;
+    }
+
+    // Cancelar todos os eventos da data
+    let canceledCount = 0;
+    const canceledTitles: string[] = [];
+
+    for (const event of eventsToCancel) {
+      if (event.google_event_id) {
+        const deleteResult = await deleteCalendarEvent(
+          user.google_access_token,
+          user.google_refresh_token,
+          user.id,
+          event.google_event_id
+        );
+
+        if (deleteResult.success) {
+          await deleteRemindersByGoogleEventId(event.google_event_id);
+          canceledCount++;
+          canceledTitles.push(event.titulo);
+        }
+      }
+    }
+
+    await sendReaction(whatsappNumber, messageId, '✅');
+    const dateLabel = isToday ? 'hoje' : 'amanhã';
+    await sendTextMessage(
+      whatsappNumber,
+      `✅ *${canceledCount} compromisso(s) de ${dateLabel} cancelado(s)!*\n\n❌ ${canceledTitles.join('\n❌ ')}`
+    );
+    return;
+  }
+
+  // Identificar qual evento específico
   const identifyResult = await identifyEventToModify(
     messageText,
     eventsResult.data,
@@ -544,7 +614,7 @@ async function handleCancelarEvento(
     return;
   }
 
-  const { google_event_id, matched_event_id, confidence } = identifyResult.data;
+  const { google_event_id, confidence } = identifyResult.data;
 
   // Se não conseguiu identificar o evento com confiança
   if (confidence === 'none' || confidence === 'low' || !google_event_id) {
