@@ -342,19 +342,28 @@ export async function getPendingReminders(): Promise<ServiceResponse<Reminder[]>
 }
 
 /**
- * Marca um lembrete como enviado
+ * Marca um lembrete como enviado (apenas se ainda não foi enviado)
+ * Retorna success: false se o lembrete já estava marcado como enviado (outro processo já tratou)
  */
 export async function markReminderAsSent(reminderId: string): Promise<ServiceResponse<void>> {
   try {
     const supabase = getSupabaseAdmin();
 
-    const { error } = await supabase
+    // Só atualiza se sent = false (evita race condition)
+    const { data, error } = await supabase
       .from('reminders')
       .update({ sent: true })
-      .eq('id', reminderId);
+      .eq('id', reminderId)
+      .eq('sent', false)
+      .select('id');
 
     if (error) {
       throw error;
+    }
+
+    // Se não atualizou nenhuma linha, significa que já estava marcado como enviado
+    if (!data || data.length === 0) {
+      return { success: false, error: 'Lembrete já foi processado' };
     }
 
     return { success: true };
@@ -426,5 +435,61 @@ export async function updateReminderByGoogleEventId(
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido',
     };
+  }
+}
+
+// ==================== IDEMPOTÊNCIA DE MENSAGENS ====================
+
+/**
+ * Verifica se uma mensagem já foi processada (para evitar duplicatas)
+ */
+export async function isMessageProcessed(messageId: string): Promise<boolean> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from('processed_messages')
+      .select('message_id')
+      .eq('message_id', messageId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows returned (not found)
+      console.error('Erro ao verificar mensagem processada:', error);
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error('Erro ao verificar mensagem processada:', error);
+    return false; // Em caso de erro, permite processar (fail-open)
+  }
+}
+
+/**
+ * Marca uma mensagem como processada
+ */
+export async function markMessageAsProcessed(
+  messageId: string,
+  whatsappNumber: string
+): Promise<boolean> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
+      .from('processed_messages')
+      .upsert(
+        { message_id: messageId, whatsapp_number: whatsappNumber },
+        { onConflict: 'message_id' }
+      );
+
+    if (error) {
+      console.error('Erro ao marcar mensagem como processada:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Erro ao marcar mensagem como processada:', error);
+    return false;
   }
 }

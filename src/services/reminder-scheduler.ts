@@ -51,15 +51,22 @@ async function processReminders(): Promise<void> {
           continue;
         }
 
+        // IMPORTANTE: Marcar como enviado ANTES de enviar (evita race condition/duplicatas)
+        // Se o scheduler rodar novamente antes de terminar, o lembrete já estará marcado
+        const markResult = await markReminderAsSent(reminder.id);
+        if (!markResult.success) {
+          console.log(`[Scheduler] Lembrete ${reminder.id} já está sendo processado, pulando`);
+          continue;
+        }
+
         // Enviar mensagem de lembrete
         await sendTextMessage(reminder.whatsapp_number, formatReminderMessage(reminder));
-
-        // Marcar como enviado
-        await markReminderAsSent(reminder.id);
 
         console.log(`[Scheduler] Lembrete enviado: ${reminder.event_title} para ${reminder.whatsapp_number}`);
       } catch (error) {
         console.error(`[Scheduler] Erro ao enviar lembrete ${reminder.id}:`, error);
+        // Nota: o lembrete já foi marcado como enviado, então não será reenviado
+        // Isso é intencional para evitar duplicatas em caso de erro parcial
       }
     }
   } catch (error) {

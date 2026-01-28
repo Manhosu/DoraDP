@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { verifyWebhook } from '../integrations/whatsapp.js';
 import { handleIncomingMessage } from '../services/message-handler.js';
+import { isMessageProcessed, markMessageAsProcessed } from '../integrations/supabase.js';
 import {
   whatsappSignatureMiddleware,
   rateLimitMiddleware,
@@ -68,6 +69,16 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Processar cada mensagem
         for (const message of messages) {
+          // Verificar idempotência - evita processar mensagem duplicada
+          const alreadyProcessed = await isMessageProcessed(message.id);
+          if (alreadyProcessed) {
+            console.log(`Mensagem ${message.id} já processada, ignorando duplicata`);
+            continue;
+          }
+
+          // Marcar como processada ANTES de processar (evita race condition)
+          await markMessageAsProcessed(message.id, message.from);
+
           // Rate limit por número de WhatsApp
           if (!checkWhatsAppRateLimit(message.from)) {
             console.warn(`Rate limit excedido para WhatsApp: ${message.from}`);
@@ -78,7 +89,7 @@ router.post('/', async (req: Request, res: Response) => {
           const contact = contacts?.find((c) => c.wa_id === message.from);
           const senderName = contact?.profile?.name;
 
-          console.log(`Nova mensagem de ${message.from}:`, {
+          console.log(`Processando mensagem de ${message.from}:`, {
             type: message.type,
             id: message.id,
             senderName,
