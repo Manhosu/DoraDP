@@ -1,6 +1,6 @@
 import express from 'express';
 import { env } from './config/env.js';
-import { webhookRouter, authRouter, adminRouter, testRouter, shortlinkRouter } from './routes/index.js';
+import { webhookRouter, authRouter, adminRouter, testRouter, shortlinkRouter, hotmartRouter } from './routes/index.js';
 import { startReminderScheduler } from './services/reminder-scheduler.js';
 
 const app = express();
@@ -28,6 +28,7 @@ app.get('/health', (_req, res) => {
 
 // Rotas
 app.use('/webhook', webhookRouter);
+app.use('/webhook/hotmart', hotmartRouter);
 app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/test', testRouter);
@@ -72,6 +73,7 @@ app.listen(PORT, () => {
   console.log('📌 Endpoints:');
   console.log(`   GET  /health          - Health check`);
   console.log(`   POST /webhook         - Webhook WhatsApp`);
+  console.log(`   POST /webhook/hotmart - Webhook Hotmart`);
   console.log(`   GET  /auth/google     - OAuth Google`);
   console.log(`   *    /admin/*         - Administração`);
   if (env.nodeEnv === 'development') {

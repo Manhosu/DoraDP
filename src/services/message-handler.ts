@@ -66,6 +66,54 @@ export async function handleIncomingMessage(
       user = userResult.data;
     }
 
+    // Verificar status da assinatura (se aplicável)
+    // Usuários sem subscription_status (legado/null) têm acesso liberado
+    const subscriptionStatus = (user as { subscription_status?: string }).subscription_status;
+    const subscriptionExpiresAt = (user as { subscription_expires_at?: string }).subscription_expires_at;
+
+    // Verificar se acesso expirou (trial de 3 meses)
+    if (subscriptionStatus === 'trial' && subscriptionExpiresAt) {
+      const expiresAt = new Date(subscriptionExpiresAt);
+      if (expiresAt < new Date()) {
+        // Acesso expirou - atualizar status e bloquear
+        await sendTextMessage(
+          whatsappNumber,
+          `⏰ *Seu período de teste expirou!*\n\n` +
+          `Esperamos que você tenha gostado da Dora!\n\n` +
+          `Para continuar organizando seus compromissos de DP, assine agora.`
+        );
+
+        if (process.env.HOTMART_CHECKOUT_URL) {
+          await sendButtonMessage(
+            whatsappNumber,
+            '🚀 Continue com a Dora',
+            'Assine agora e não perca seus agendamentos:',
+            [{ text: 'Assinar Agora', url: process.env.HOTMART_CHECKOUT_URL }]
+          );
+        }
+        return;
+      }
+    }
+
+    // Verificar se assinatura foi cancelada
+    if (subscriptionStatus === 'expired' || subscriptionStatus === 'canceled') {
+      await sendTextMessage(
+        whatsappNumber,
+        `😢 *Seu acesso à Dora está bloqueado.*\n\n` +
+        `Renove sua assinatura para continuar usando.`
+      );
+
+      if (process.env.HOTMART_CHECKOUT_URL) {
+        await sendButtonMessage(
+          whatsappNumber,
+          '💜 Renovar Acesso',
+          'Clique para renovar sua assinatura:',
+          [{ text: 'Renovar Agora', url: process.env.HOTMART_CHECKOUT_URL }]
+        );
+      }
+      return;
+    }
+
     // Se for novo usuário ou onboarding não completo
     if (isNewUser || !user.onboarding_completed) {
       // Enviar boas-vindas apenas se for novo usuário
