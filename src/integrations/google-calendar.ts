@@ -185,9 +185,15 @@ export async function createCalendarEvent(
     };
   } catch (error) {
     console.error('Erro ao criar evento no Google Calendar:', error);
+
+    // Detectar erro de token expirado/revogado
+    const errorMessage = error instanceof Error ? error.message : '';
+    const isInvalidGrant = errorMessage.includes('invalid_grant') ||
+                           (error as { code?: number })?.code === 400;
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Erro ao criar evento',
+      error: isInvalidGrant ? 'TOKEN_EXPIRED' : (error instanceof Error ? error.message : 'Erro ao criar evento'),
     };
   }
 }
@@ -235,9 +241,15 @@ export async function listEventsForDay(
     return { success: true, data: events };
   } catch (error) {
     console.error('Erro ao listar eventos:', error);
+
+    // Detectar erro de token expirado/revogado
+    const errorMessage = error instanceof Error ? error.message : '';
+    const isInvalidGrant = errorMessage.includes('invalid_grant') ||
+                           (error as { code?: number })?.code === 400;
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Erro ao listar eventos',
+      error: isInvalidGrant ? 'TOKEN_EXPIRED' : (error instanceof Error ? error.message : 'Erro ao listar eventos'),
     };
   }
 }

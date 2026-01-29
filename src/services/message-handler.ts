@@ -247,6 +247,17 @@ async function processScheduling(
     googleEventId = calendarResult.data.eventId;
   } else {
     console.error('Erro ao criar evento no Calendar:', calendarResult.error);
+
+    // Verificar se é erro de token expirado
+    if (calendarResult.error === 'TOKEN_EXPIRED') {
+      await sendTextMessage(
+        whatsappNumber,
+        `⚠️ *Sua conexão com o Google Calendar expirou.*\n\n` +
+        `Por favor, reconecte clicando no link abaixo:\n` +
+        `🔗 ${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+      );
+      return;
+    }
   }
 
   // Registrar no log
@@ -309,6 +320,17 @@ async function handleViewAgenda(user: User, targetDate?: Date): Promise<void> {
   );
 
   if (!eventsResult.success) {
+    // Verificar se é erro de token expirado
+    if (eventsResult.error === 'TOKEN_EXPIRED') {
+      await sendTextMessage(
+        whatsappNumber,
+        `⚠️ *Sua conexão com o Google Calendar expirou.*\n\n` +
+        `Por favor, reconecte clicando no link abaixo:\n` +
+        `🔗 ${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+      );
+      return;
+    }
+
     await sendTextMessage(
       whatsappNumber,
       formatErrorMessage('Não consegui buscar sua agenda. Tente novamente.')
