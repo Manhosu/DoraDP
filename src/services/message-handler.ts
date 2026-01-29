@@ -281,6 +281,11 @@ async function processScheduling(
 
   const event = extractResult.data;
 
+  // Combinar título com nome da empresa se existir
+  if (event.empresa && !event.titulo.toLowerCase().includes(event.empresa.toLowerCase())) {
+    event.titulo = `${event.titulo} - ${event.empresa}`;
+  }
+
   // Criar evento no Google Calendar
   const calendarResult = await createCalendarEvent(
     user.google_access_token,

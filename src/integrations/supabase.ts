@@ -493,3 +493,48 @@ export async function markMessageAsProcessed(
     return false;
   }
 }
+
+// ==================== USUÁRIOS ATIVOS ====================
+
+/**
+ * Busca todos os usuários ativos com Google Calendar conectado
+ * Para envio de lembretes matinais
+ */
+export async function getAllActiveUsersWithCalendar(): Promise<ServiceResponse<Array<{
+  id: string;
+  whatsapp_number: string;
+  google_access_token: string;
+  google_refresh_token: string;
+  timezone: string;
+  subscription_status: string | null;
+}>>> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, whatsapp_number, google_access_token, google_refresh_token, timezone, subscription_status')
+      .not('google_access_token', 'is', null)
+      .not('google_refresh_token', 'is', null);
+
+    if (error) {
+      throw error;
+    }
+
+    // Filtrar usuários com acesso ativo (não expirado/cancelado)
+    const activeUsers = (data || []).filter(user => {
+      const status = user.subscription_status;
+      // Permitir: null (legado), active, trial
+      // Bloquear: expired, canceled
+      return !status || status === 'active' || status === 'trial';
+    });
+
+    return { success: true, data: activeUsers };
+  } catch (error) {
+    console.error('Erro ao buscar usuários ativos:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
