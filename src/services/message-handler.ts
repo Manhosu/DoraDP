@@ -250,11 +250,11 @@ async function processScheduling(
 
     // Verificar se é erro de token expirado
     if (calendarResult.error === 'TOKEN_EXPIRED') {
-      await sendTextMessage(
+      await sendButtonMessage(
         whatsappNumber,
-        `⚠️ *Sua conexão com o Google Calendar expirou.*\n\n` +
-        `Por favor, reconecte clicando no link abaixo:\n` +
-        `🔗 ${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+        '⚠️ Conexão Expirada',
+        'Sua conexão com o Google Calendar expirou. Clique no botão abaixo para reconectar:',
+        [{ text: 'Reconectar Google', url: `${env.appUrl}/g/${whatsappNumber}` }]
       );
       return;
     }
@@ -322,11 +322,11 @@ async function handleViewAgenda(user: User, targetDate?: Date): Promise<void> {
   if (!eventsResult.success) {
     // Verificar se é erro de token expirado
     if (eventsResult.error === 'TOKEN_EXPIRED') {
-      await sendTextMessage(
+      await sendButtonMessage(
         whatsappNumber,
-        `⚠️ *Sua conexão com o Google Calendar expirou.*\n\n` +
-        `Por favor, reconecte clicando no link abaixo:\n` +
-        `🔗 ${env.appUrl}/auth/google?whatsapp=${whatsappNumber}`
+        '⚠️ Conexão Expirada',
+        'Sua conexão com o Google Calendar expirou. Clique no botão abaixo para reconectar:',
+        [{ text: 'Reconectar Google', url: `${env.appUrl}/g/${whatsappNumber}` }]
       );
       return;
     }
