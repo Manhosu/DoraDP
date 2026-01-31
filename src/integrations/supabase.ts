@@ -538,3 +538,253 @@ export async function getAllActiveUsersWithCalendar(): Promise<ServiceResponse<A
     };
   }
 }
+
+// ==================== FUNÇÕES ADMIN ====================
+
+/**
+ * Lista todos os usuários com filtros e paginação
+ */
+export async function getAllUsers(filters: {
+  status?: string;
+  search?: string;
+  page: number;
+  limit: number;
+}): Promise<ServiceResponse<{
+  users: Array<{
+    id: string;
+    whatsapp_number: string;
+    full_name: string | null;
+    email: string | null;
+    subscription_status: string | null;
+    subscription_expires_at: string | null;
+    has_google: boolean;
+    onboarding_completed: boolean;
+    created_at: string;
+  }>;
+  total: number;
+  page: number;
+  limit: number;
+}>> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { status, search, page, limit } = filters;
+    const offset = (page - 1) * limit;
+
+    // Query base
+    let query = supabase
+      .from('users')
+      .select('id, whatsapp_number, full_name, email, subscription_status, subscription_expires_at, google_access_token, onboarding_completed, created_at', { count: 'exact' })
+      .eq('is_active', true);
+
+    // Filtrar por status
+    if (status) {
+      if (status === 'legacy') {
+        query = query.is('subscription_status', null);
+      } else {
+        query = query.eq('subscription_status', status);
+      }
+    }
+
+    // Busca por número ou nome
+    if (search) {
+      query = query.or(`whatsapp_number.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+
+    // Paginação e ordenação
+    const { data, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    // Transformar dados (não expor tokens)
+    const users = (data || []).map(user => ({
+      id: user.id,
+      whatsapp_number: user.whatsapp_number,
+      full_name: user.full_name,
+      email: user.email,
+      subscription_status: user.subscription_status,
+      subscription_expires_at: user.subscription_expires_at,
+      has_google: !!user.google_access_token,
+      onboarding_completed: user.onboarding_completed || false,
+      created_at: user.created_at,
+    }));
+
+    return {
+      success: true,
+      data: {
+        users,
+        total: count || 0,
+        page,
+        limit,
+      },
+    };
+  } catch (error) {
+    console.error('Erro ao listar usuários:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
+
+/**
+ * Atualiza dados de assinatura de um usuário
+ */
+export async function updateUserSubscription(
+  whatsappNumber: string,
+  updates: {
+    subscription_status?: string | null;
+    subscription_expires_at?: string | null;
+    full_name?: string;
+    email?: string;
+  }
+): Promise<ServiceResponse<User>> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    // Montar objeto de atualização
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.subscription_status !== undefined) {
+      updateData.subscription_status = updates.subscription_status;
+    }
+    if (updates.subscription_expires_at !== undefined) {
+      updateData.subscription_expires_at = updates.subscription_expires_at;
+    }
+    if (updates.full_name !== undefined) {
+      updateData.full_name = updates.full_name;
+    }
+    if (updates.email !== undefined) {
+      updateData.email = updates.email;
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('whatsapp_number', whatsappNumber)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Usuário não encontrado' };
+      }
+      throw error;
+    }
+
+    return { success: true, data: data as User };
+  } catch (error) {
+    console.error('Erro ao atualizar assinatura:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
+
+/**
+ * Deleta um usuário (soft delete - marca como inativo)
+ */
+export async function deleteUser(whatsappNumber: string): Promise<ServiceResponse<void>> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        is_active: false,
+        subscription_status: 'canceled',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('whatsapp_number', whatsappNumber);
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Erro ao deletar usuário:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
+
+/**
+ * Retorna estatísticas do sistema para o painel admin
+ */
+export async function getAdminStats(): Promise<ServiceResponse<{
+  total_users: number;
+  active: number;
+  trial: number;
+  expired: number;
+  canceled: number;
+  legacy: number;
+  with_google: number;
+}>> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    // Buscar contagens por status
+    const { data, error } = await supabase
+      .from('users')
+      .select('subscription_status, google_access_token')
+      .eq('is_active', true);
+
+    if (error) {
+      throw error;
+    }
+
+    const users = data || [];
+    const stats = {
+      total_users: users.length,
+      active: 0,
+      trial: 0,
+      expired: 0,
+      canceled: 0,
+      legacy: 0,
+      with_google: 0,
+    };
+
+    for (const user of users) {
+      // Contar por status
+      switch (user.subscription_status) {
+        case 'active':
+          stats.active++;
+          break;
+        case 'trial':
+          stats.trial++;
+          break;
+        case 'expired':
+          stats.expired++;
+          break;
+        case 'canceled':
+          stats.canceled++;
+          break;
+        default:
+          stats.legacy++;
+          break;
+      }
+
+      // Contar com Google conectado
+      if (user.google_access_token) {
+        stats.with_google++;
+      }
+    }
+
+    return { success: true, data: stats };
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}

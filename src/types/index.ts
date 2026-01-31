@@ -7,12 +7,16 @@ export interface User {
   id: string;
   whatsapp_number: string;
   full_name: string | null;
+  email: string | null;
   google_access_token: string | null;
   google_refresh_token: string | null;
   google_token_expiry: string | null;
   timezone: string;
   is_active: boolean;
   onboarding_completed: boolean;
+  subscription_status: 'active' | 'trial' | 'expired' | 'canceled' | null;
+  subscription_expires_at: string | null;
+  hotmart_product_id: string | null;
   created_at: string;
   updated_at: string;
 }
