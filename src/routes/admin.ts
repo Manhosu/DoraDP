@@ -54,35 +54,51 @@ router.use('/users', adminAuth);
  * GET /admin/stats - Estatísticas do sistema
  */
 router.get('/stats', async (_req: Request, res: Response) => {
-  const result = await getAdminStats();
+  console.log('[Admin] GET /admin/stats');
+  try {
+    const result = await getAdminStats();
 
-  if (!result.success) {
-    res.status(500).json({ success: false, error: result.error });
-    return;
+    if (!result.success) {
+      console.error('[Admin] Erro em stats:', result.error);
+      res.status(500).json({ success: false, error: result.error });
+      return;
+    }
+
+    console.log('[Admin] Stats:', result.data);
+    res.json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('[Admin] Exceção em stats:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
   }
-
-  res.json({ success: true, data: result.data });
 });
 
 /**
  * GET /admin/users - Lista todos os usuários com filtros
  */
 router.get('/users', async (req: Request, res: Response) => {
-  const { status, search, page = '1', limit = '50' } = req.query;
+  console.log('[Admin] GET /admin/users', req.query);
+  try {
+    const { status, search, page = '1', limit = '50' } = req.query;
 
-  const result = await getAllUsers({
-    status: status as string | undefined,
-    search: search as string | undefined,
-    page: parseInt(page as string, 10) || 1,
-    limit: Math.min(parseInt(limit as string, 10) || 50, 100), // máximo 100
-  });
+    const result = await getAllUsers({
+      status: status as string | undefined,
+      search: search as string | undefined,
+      page: parseInt(page as string, 10) || 1,
+      limit: Math.min(parseInt(limit as string, 10) || 50, 100), // máximo 100
+    });
 
-  if (!result.success) {
-    res.status(500).json({ success: false, error: result.error });
-    return;
+    if (!result.success) {
+      console.error('[Admin] Erro em users:', result.error);
+      res.status(500).json({ success: false, error: result.error });
+      return;
+    }
+
+    console.log('[Admin] Users encontrados:', result.data?.total);
+    res.json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('[Admin] Exceção em users:', error);
+    res.status(500).json({ success: false, error: 'Erro interno' });
   }
-
-  res.json({ success: true, data: result.data });
 });
 
 /**

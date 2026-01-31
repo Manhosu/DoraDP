@@ -570,13 +570,13 @@ export async function getAllUsers(filters: {
     const { status, search, page, limit } = filters;
     const offset = (page - 1) * limit;
 
-    // Query base
+    // Query base - buscar todos os campos disponíveis
     let query = supabase
       .from('users')
-      .select('id, whatsapp_number, full_name, email, subscription_status, subscription_expires_at, google_access_token, onboarding_completed, created_at', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('is_active', true);
 
-    // Filtrar por status
+    // Filtrar por status (só se a coluna existir)
     if (status) {
       if (status === 'legacy') {
         query = query.is('subscription_status', null);
@@ -585,9 +585,9 @@ export async function getAllUsers(filters: {
       }
     }
 
-    // Busca por número ou nome
+    // Busca por número ou nome (usar apenas campos que certamente existem)
     if (search) {
-      query = query.or(`whatsapp_number.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(`whatsapp_number.ilike.%${search}%,full_name.ilike.%${search}%`);
     }
 
     // Paginação e ordenação
@@ -596,17 +596,20 @@ export async function getAllUsers(filters: {
       .range(offset, offset + limit - 1);
 
     if (error) {
+      console.error('Erro na query getAllUsers:', error);
       throw error;
     }
 
-    // Transformar dados (não expor tokens)
+    console.log(`[Admin] Encontrados ${data?.length || 0} usuários`);
+
+    // Transformar dados (não expor tokens, tratar campos opcionais)
     const users = (data || []).map(user => ({
       id: user.id,
       whatsapp_number: user.whatsapp_number,
-      full_name: user.full_name,
-      email: user.email,
-      subscription_status: user.subscription_status,
-      subscription_expires_at: user.subscription_expires_at,
+      full_name: user.full_name || null,
+      email: user.email || null,
+      subscription_status: user.subscription_status || null,
+      subscription_expires_at: user.subscription_expires_at || null,
       has_google: !!user.google_access_token,
       onboarding_completed: user.onboarding_completed || false,
       created_at: user.created_at,
@@ -732,17 +735,20 @@ export async function getAdminStats(): Promise<ServiceResponse<{
   try {
     const supabase = getSupabaseAdmin();
 
-    // Buscar contagens por status
+    // Buscar todos os usuários ativos (select * para evitar erro se coluna não existir)
     const { data, error } = await supabase
       .from('users')
-      .select('subscription_status, google_access_token')
+      .select('*')
       .eq('is_active', true);
 
     if (error) {
+      console.error('Erro na query getAdminStats:', error);
       throw error;
     }
 
     const users = data || [];
+    console.log(`[Admin] Stats: ${users.length} usuários ativos encontrados`);
+
     const stats = {
       total_users: users.length,
       active: 0,
@@ -754,8 +760,9 @@ export async function getAdminStats(): Promise<ServiceResponse<{
     };
 
     for (const user of users) {
-      // Contar por status
-      switch (user.subscription_status) {
+      // Contar por status (campo pode não existir)
+      const status = user.subscription_status;
+      switch (status) {
         case 'active':
           stats.active++;
           break;

@@ -466,9 +466,12 @@
       adminKey = key;
 
       try {
+        console.log('Tentando login com chave...');
         const response = await fetch('/admin/stats', {
           headers: { 'x-admin-key': adminKey }
         });
+
+        console.log('Resposta login:', response.status);
 
         if (response.status === 401) {
           showMessage('loginMessage', 'Chave invalida', 'error');
@@ -476,13 +479,30 @@
           return;
         }
 
+        const result = await response.json();
+        console.log('Dados login:', result);
+
+        if (!result.success) {
+          showMessage('loginMessage', 'Erro: ' + (result.error || 'Falha no servidor'), 'error');
+          return;
+        }
+
         localStorage.setItem('doradp_admin_key', adminKey);
         document.getElementById('loginSection').classList.add('hidden');
         document.getElementById('mainContent').classList.remove('hidden');
-        loadStats();
+
+        // Já temos os stats da verificação de login
+        document.getElementById('statTotal').textContent = result.data.total_users;
+        document.getElementById('statActive').textContent = result.data.active;
+        document.getElementById('statTrial').textContent = result.data.trial;
+        document.getElementById('statExpired').textContent = result.data.expired;
+        document.getElementById('statCanceled').textContent = result.data.canceled;
+        document.getElementById('statGoogle').textContent = result.data.with_google;
+
         loadUsers();
       } catch (error) {
-        showMessage('loginMessage', 'Erro ao conectar', 'error');
+        console.error('Erro no login:', error);
+        showMessage('loginMessage', 'Erro ao conectar: ' + error.message, 'error');
       }
     }
 
@@ -492,6 +512,7 @@
           headers: { 'x-admin-key': adminKey }
         });
         const result = await response.json();
+        console.log('Resposta stats:', result);
 
         if (result.success) {
           document.getElementById('statTotal').textContent = result.data.total_users;
@@ -500,9 +521,13 @@
           document.getElementById('statExpired').textContent = result.data.expired;
           document.getElementById('statCanceled').textContent = result.data.canceled;
           document.getElementById('statGoogle').textContent = result.data.with_google;
+        } else {
+          console.error('Erro ao carregar stats:', result.error);
+          showMessage('message', 'Erro ao carregar estatisticas: ' + result.error, 'error');
         }
       } catch (error) {
         console.error('Erro ao carregar stats:', error);
+        showMessage('message', 'Erro de conexao ao carregar estatisticas', 'error');
       }
     }
 
@@ -519,12 +544,18 @@
           headers: { 'x-admin-key': adminKey }
         });
         const result = await response.json();
+        console.log('Resposta users:', result);
 
         if (result.success) {
           renderUsers(result.data.users);
+        } else {
+          document.getElementById('usersTable').innerHTML =
+            `<tr><td colspan="8" class="loading" style="color:red">Erro: ${result.error || 'Falha ao carregar'}</td></tr>`;
         }
       } catch (error) {
         console.error('Erro ao carregar usuarios:', error);
+        document.getElementById('usersTable').innerHTML =
+          `<tr><td colspan="8" class="loading" style="color:red">Erro de conexao: ${error.message}</td></tr>`;
       }
     }
 
